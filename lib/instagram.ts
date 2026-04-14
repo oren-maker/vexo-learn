@@ -13,25 +13,35 @@ export type IgExtract = {
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
 
-async function fetchMetaTags(url: string): Promise<{ caption: string | null; thumbnail: string | null }> {
+async function fetchMetaTags(url: string): Promise<{ caption: string | null; thumbnail: string | null; videoUrl: string | null }> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return { caption: null, thumbnail: null };
+    if (!res.ok) return { caption: null, thumbnail: null, videoUrl: null };
     const html = await res.text();
 
     const ogDesc = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1]
       || html.match(/<meta\s+name="description"\s+content="([^"]*)"/i)?.[1]
       || null;
     const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1] || null;
+    const ogVideo =
+      html.match(/<meta\s+property="og:video"\s+content="([^"]*)"/i)?.[1] ||
+      html.match(/<meta\s+property="og:video:secure_url"\s+content="([^"]*)"/i)?.[1] ||
+      null;
+    // Fallback: look for video_url in embedded JSON (InstagramJSON) — common pattern
+    const jsonVideo =
+      html.match(/"video_url":"([^"]+)"/)?.[1] ||
+      html.match(/"video_versions":\[\{[^}]*"url":"([^"]+)"/)?.[1] ||
+      null;
 
     const caption = ogDesc ? decodeHtmlEntities(ogDesc) : null;
     const thumbnail = ogImage ? decodeHtmlEntities(ogImage) : null;
-    return { caption, thumbnail };
+    const videoUrl = ogVideo ? decodeHtmlEntities(ogVideo) : jsonVideo ? jsonVideo.replace(/\\u0026/g, "&").replace(/\\\//g, "/") : null;
+    return { caption, thumbnail, videoUrl };
   } catch {
-    return { caption: null, thumbnail: null };
+    return { caption: null, thumbnail: null, videoUrl: null };
   }
 }
 
@@ -67,15 +77,18 @@ async function tryInstagramDirect(clean: string, attempts = 3): Promise<string |
 export async function extractInstagram(url: string): Promise<IgExtract> {
   const clean = url.split("?")[0]; // strip tracking params
 
-  // Run direct + meta in parallel. Meta tags work even when the direct URL fetch fails.
-  const [videoUrl, meta] = await Promise.all([
-    tryInstagramDirect(clean),
+  // Strategy: run library + HTML meta scrape in parallel. HTML scrape usually works even when library 572s.
+  const [libVideoUrl, meta] = await Promise.all([
+    tryInstagramDirect(clean).catch(() => null),
     fetchMetaTags(clean),
   ]);
 
+  // Prefer library (gives fresh CDN URL), fall back to meta tag / embedded JSON
+  const videoUrl = libVideoUrl || meta.videoUrl;
+
   if (!videoUrl && !meta.caption && !meta.thumbnail) {
     throw new Error(
-      "Instagram חסום זמנית. נסה שוב בעוד דקה-שתיים, או העלה את הקובץ ידנית דרך לשונית 'העלאת קובץ'.",
+      "Instagram חסום זמנית (כנראה הפוסט פרטי או rate-limit). נסה שוב בעוד דקה, או השתמש ב'העלאת קובץ' / 'URL ישיר'.",
     );
   }
 
