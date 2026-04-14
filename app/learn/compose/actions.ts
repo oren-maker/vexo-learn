@@ -2,6 +2,7 @@
 
 import { composePrompt, suggestSimilar } from "@/lib/gemini-compose";
 import { prisma } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 
 export async function composeAction(brief: string) {
   try {
@@ -21,7 +22,14 @@ export async function similarAction(sourceId: string, count = 3) {
   }
 }
 
-export async function saveComposedAction(input: { prompt: string; title?: string; brief: string }) {
+export async function saveComposedAction(input: {
+  prompt: string;
+  title?: string;
+  brief: string;
+  parentSourceId?: string;
+  lineageNotes?: string;
+  addedBy?: string;
+}) {
   try {
     const created = await prisma.learnSource.create({
       data: {
@@ -29,10 +37,16 @@ export async function saveComposedAction(input: { prompt: string; title?: string
         prompt: input.prompt.trim(),
         title: input.title?.trim() || input.brief.slice(0, 60),
         status: "complete",
-        addedBy: "gemini-compose",
+        addedBy: input.addedBy || (input.parentSourceId ? "variation" : "gemini-compose"),
         url: null,
+        parentSourceId: input.parentSourceId || null,
+        lineageNotes: input.lineageNotes?.trim() || null,
       },
     });
+    if (input.parentSourceId) {
+      revalidatePath(`/learn/sources/${input.parentSourceId}`);
+    }
+    revalidatePath(`/learn/sources/${created.id}`);
     return { ok: true as const, id: created.id };
   } catch (e: any) {
     return { ok: false as const, error: String(e.message || e) };

@@ -6,18 +6,10 @@ import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer, Link } fr
 Font.register({
   family: "Heebo",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/heebo/v30/NGS6v5_NC0k9P_v6ZUCbLRAHxK1EiSysd7aqxg.ttf", fontWeight: 400 },
-    { src: "https://fonts.gstatic.com/s/heebo/v30/NGS6v5_NC0k9P_v6ZUCbLRAHxK1EiSysd7aqxg.ttf", fontWeight: 500 },
-    { src: "https://fonts.gstatic.com/s/heebo/v30/NGS6v5_NC0k9P_v6ZUCbLRAHxK1EiS2sd7aqxg.ttf", fontWeight: 700 },
-    { src: "https://fonts.gstatic.com/s/heebo/v30/NGS6v5_NC0k9P_v6ZUCbLRAHxK1EiSGsd7aqxg.ttf", fontWeight: 800 },
-  ],
-});
-
-// Monospace for the prompt block
-Font.register({
-  family: "Inconsolata",
-  fonts: [
-    { src: "https://fonts.gstatic.com/s/inconsolata/v33/QldgNThLqRwH-OJ1UHjlKENVzkWGVkL3GZQmAwLYxYWI2qfdm7Lpp4U8aRr8lleY2co.ttf", fontWeight: 400 },
+    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1EiSyccg.ttf", fontWeight: 400 },
+    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1Euyyccg.ttf", fontWeight: 500 },
+    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1Ebiuccg.ttf", fontWeight: 700 },
+    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1ECSuccg.ttf", fontWeight: 800 },
   ],
 });
 
@@ -113,7 +105,7 @@ const styles = StyleSheet.create({
     color: "#e2e8f0",
     padding: 14,
     borderRadius: 4,
-    fontFamily: "Inconsolata",
+    fontFamily: "Courier",
     fontSize: 9,
     lineHeight: 1.5,
   },

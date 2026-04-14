@@ -8,6 +8,7 @@ import DownloadPdfButton from "@/components/download-pdf-button";
 import RetryAnalysisButton from "@/components/retry-analysis-button";
 import GenerateImageButton from "@/components/generate-image-button";
 import GeneratedImagesGallery from "@/components/generated-images-gallery";
+import PromptLineage from "@/components/prompt-lineage";
 
 export const dynamic = "force-dynamic";
 
@@ -142,7 +143,8 @@ export default async function SourceDetail({ params }: { params: { id: string } 
 
       <div className="mt-6">
         <GeneratedImagesGallery sourceId={source.id} />
-        <SuggestSimilar sourceId={source.id} />
+        <PromptLineage sourceId={source.id} />
+        <SuggestSimilar sourceId={source.id} sourceTitle={source.title} />
       </div>
     </div>
   );
