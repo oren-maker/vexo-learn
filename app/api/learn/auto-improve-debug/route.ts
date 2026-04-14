@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   };
 
   if (run) {
-    const latestSnapshot = await prisma.insightsSnapshot.findFirst({ orderBy: { createdAt: "desc" } });
+    const latestSnapshot = await prisma.insightsSnapshot.findFirst({ orderBy: { takenAt: "desc" } });
     if (!latestSnapshot) {
       base.runResult = { ok: false, error: "no snapshot exists" };
     } else {
