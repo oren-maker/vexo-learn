@@ -45,3 +45,4 @@ uploads/
 
 .vercel
 .env*.local
+.internal_key_generated.txt
