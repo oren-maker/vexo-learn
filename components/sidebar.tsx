@@ -5,24 +5,25 @@ import { usePathname } from "next/navigation";
 
 const groups = [
   {
-    title: "יצירה",
+    title: "הפרומפט המושלם",
     items: [
-      { href: "/learn/compose", label: "מחולל פרומפטים", icon: "✨" },
+      { href: "/learn/compose", label: "חולל פרומפט", icon: "✨" },
+      { href: "/learn/improve", label: "שפר פרומפט", icon: "🎯" },
+    ],
+  },
+  {
+    title: "מקורות למידה",
+    items: [
+      { href: "/learn", label: "Feed", icon: "📚" },
+      { href: "/learn/sources", label: "ספריית פרומפטים", icon: "🎬" },
+      { href: "/learn/knowledge", label: "Knowledge Base", icon: "🧠" },
       { href: "/learn/search", label: "חיפוש וידאו", icon: "🔍" },
     ],
   },
   {
-    title: "למידה",
+    title: "הזנת חומר",
     items: [
-      { href: "/learn", label: "Feed", icon: "📚" },
-      { href: "/learn/knowledge", label: "Knowledge Base", icon: "🧠" },
-    ],
-  },
-  {
-    title: "ניהול",
-    items: [
-      { href: "/learn/sources", label: "מקורות", icon: "🎬" },
-      { href: "/learn/sources/new", label: "הוספת URL/קובץ", icon: "➕" },
+      { href: "/learn/sources/new", label: "הוסף URL/קובץ", icon: "➕" },
       { href: "/learn/sync", label: "סנכרון ויבוא", icon: "🔄" },
     ],
   },
