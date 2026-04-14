@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { computeCorpusInsights } from "@/lib/corpus-insights";
+import { prisma } from "@/lib/db";
+import InsightsFreshness from "@/components/insights-freshness";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function InsightsPage() {
-  const insights = await computeCorpusInsights();
+  const [insights, latestSnapshot] = await Promise.all([
+    computeCorpusInsights(),
+    prisma.insightsSnapshot.findFirst({ orderBy: { takenAt: "desc" }, select: { takenAt: true } }),
+  ]);
   const t = insights.totals;
 
   if (t.sources === 0) {
@@ -48,6 +53,8 @@ export default async function InsightsPage() {
           </Link>
         </div>
       </header>
+
+      <InsightsFreshness lastTakenAt={latestSnapshot?.takenAt.toISOString() || null} />
 
       {/* Headline KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
