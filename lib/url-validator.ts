@@ -11,6 +11,8 @@ const DIRECT_ALLOWED_HOSTS = [
 const BLOCKED_WITH_HINT: Array<{ match: RegExp; hint: string }> = [
   { match: /youtube\.com|youtu\.be/i, hint: "YouTube URLs לא נתמכים. העלה את הסרטון ידנית או השתמש בחיפוש Pexels." },
   { match: /vimeo\.com/i, hint: "Vimeo URLs לא נתמכים. העלה את הסרטון ידנית או השתמש בחיפוש Pexels." },
+  { match: /instagram\.com/i, hint: "Instagram יש לשלוח דרך הטאב \"📸 Instagram\" בדף הוספת מקור — שם יש פייפליין מלא: הורדה → תרגום → Gemini." },
+  { match: /tiktok\.com/i, hint: "TikTok עדיין לא נתמך. העלה את הקובץ ידנית." },
 ];
 
 export function validateUrl(url: string): { ok: boolean; reason?: string } {
