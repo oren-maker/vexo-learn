@@ -27,15 +27,18 @@ function diffFrequencyList(
   rising: Array<{ name: string; deltaCount: number }>;
   falling: Array<{ name: string; deltaCount: number }>;
 } {
-  const prevMap = new Map(prev.map((p) => [p.name, p.count]));
-  const currMap = new Map(curr.map((p) => [p.name, p.count]));
+  const prevMap: Record<string, number> = {};
+  for (const p of prev) prevMap[p.name] = p.count;
+  const currMap: Record<string, number> = {};
+  for (const p of curr) currMap[p.name] = p.count;
   const added: Array<{ name: string; count: number }> = [];
   const removed: Array<{ name: string }> = [];
   const rising: Array<{ name: string; deltaCount: number }> = [];
   const falling: Array<{ name: string; deltaCount: number }> = [];
 
-  for (const [name, count] of currMap) {
-    const prevCount = prevMap.get(name);
+  for (const name of Object.keys(currMap)) {
+    const count = currMap[name];
+    const prevCount = prevMap[name];
     if (prevCount === undefined) {
       added.push({ name, count });
     } else if (count > prevCount) {
@@ -44,8 +47,8 @@ function diffFrequencyList(
       falling.push({ name, deltaCount: count - prevCount });
     }
   }
-  for (const [name] of prevMap) {
-    if (!currMap.has(name)) removed.push({ name });
+  for (const name of Object.keys(prevMap)) {
+    if (!(name in currMap)) removed.push({ name });
   }
   return {
     added: added.sort((a, b) => b.count - a.count),
