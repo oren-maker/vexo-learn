@@ -6,6 +6,7 @@ import AutoRefresh from "@/components/auto-refresh";
 import SuggestSimilar from "@/components/suggest-similar";
 import DownloadPdfButton from "@/components/download-pdf-button";
 import RetryAnalysisButton from "@/components/retry-analysis-button";
+import GenerateImageButton from "@/components/generate-image-button";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,10 @@ export default async function SourceDetail({ params }: { params: { id: string } 
         <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
           ← חזרה למקורות
         </Link>
-        <DownloadPdfButton sourceId={source.id} hasCached={!!source.pdfBlobUrl} />
+        <div className="flex gap-2">
+          <GenerateImageButton sourceId={source.id} />
+          <DownloadPdfButton sourceId={source.id} hasCached={!!source.pdfBlobUrl} />
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-8">

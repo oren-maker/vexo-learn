@@ -2,6 +2,7 @@
 // Uses caption text + thumbnail image (vision) since Claude doesn't support video directly.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { logUsage } from "./usage-tracker";
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -74,6 +75,12 @@ export async function generatePromptWithClaude(caption: string | null, thumbnail
     max_tokens: 2048,
     system: SYSTEM,
     messages: [{ role: "user", content }],
+  });
+  await logUsage({
+    model: "claude-haiku-4-5-20251001",
+    operation: "video-analysis",
+    inputTokens: res.usage?.input_tokens || 0,
+    outputTokens: res.usage?.output_tokens || 0,
   });
 
   const textBlock = res.content.find((b) => b.type === "text");

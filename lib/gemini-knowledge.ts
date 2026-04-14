@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "./db";
+import { logUsage } from "./usage-tracker";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
@@ -48,6 +49,12 @@ export async function extractKnowledgeFromPromptText(
     generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
   });
   const result = await model.generateContent(promptText.slice(0, 6000));
+  const u = result.response.usageMetadata;
+  await logUsage({
+    model: MODEL, operation: "knowledge-extract",
+    inputTokens: u?.promptTokenCount || 0,
+    outputTokens: u?.candidatesTokenCount || 0,
+  });
   const raw = result.response.text();
   const parsed = JSON.parse(raw);
   return {

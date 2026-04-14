@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
+import { logUsage } from "./usage-tracker";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
@@ -98,10 +99,15 @@ async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPr
     generationConfig: { responseMimeType: "application/json", temperature: 0.8 },
   });
   const result = await model.generateContent(buildUserMsg(brief, refs));
+  const u = result.response.usageMetadata;
+  await logUsage({
+    model: MODEL, operation: "compose",
+    inputTokens: u?.promptTokenCount || 0,
+    outputTokens: u?.candidatesTokenCount || 0,
+  });
   const { prompt, rationale } = parseComposeJson(result.response.text());
   return {
-    prompt,
-    rationale,
+    prompt, rationale,
     similar: refs.map((r) => ({ id: r.id, title: r.title, externalId: r.externalId })),
     engine: "gemini",
   };
@@ -116,6 +122,11 @@ async function composeWithClaude(brief: string, refs: any[]): Promise<ComposedPr
     max_tokens: 2048,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: buildUserMsg(brief, refs) }],
+  });
+  await logUsage({
+    model: "claude-haiku-4-5-20251001", operation: "compose",
+    inputTokens: res.usage?.input_tokens || 0,
+    outputTokens: res.usage?.output_tokens || 0,
   });
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Claude returned no text");

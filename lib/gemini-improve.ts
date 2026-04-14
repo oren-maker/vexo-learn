@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
+import { logUsage } from "./usage-tracker";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
@@ -116,6 +117,12 @@ async function improveWithGemini(userPrompt: string, refs: any[]) {
     generationConfig: { responseMimeType: "application/json", temperature: 0.5 },
   });
   const result = await model.generateContent(buildUserMsg(userPrompt, refs));
+  const u = result.response.usageMetadata;
+  await logUsage({
+    model: MODEL, operation: "improve",
+    inputTokens: u?.promptTokenCount || 0,
+    outputTokens: u?.candidatesTokenCount || 0,
+  });
   return parseImproveJson(result.response.text());
 }
 
@@ -128,6 +135,11 @@ async function improveWithClaude(userPrompt: string, refs: any[]) {
     max_tokens: 2048,
     system: buildSystem(),
     messages: [{ role: "user", content: buildUserMsg(userPrompt, refs) }],
+  });
+  await logUsage({
+    model: "claude-haiku-4-5-20251001", operation: "improve",
+    inputTokens: res.usage?.input_tokens || 0,
+    outputTokens: res.usage?.output_tokens || 0,
   });
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Claude returned no text");

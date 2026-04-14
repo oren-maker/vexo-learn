@@ -29,6 +29,12 @@ const groups = [
       { href: "/learn/sync", label: "סנכרון ויבוא", icon: "🔄" },
     ],
   },
+  {
+    title: "ניהול",
+    items: [
+      { href: "/learn/tokens", label: "עלויות ו-Tokens", icon: "💰" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
