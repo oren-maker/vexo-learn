@@ -21,6 +21,8 @@ model LearnSource {
   status     String   @default("pending") // pending | processing | complete | failed
   error      String?
   addedBy    String?
+  pdfBlobUrl String?
+  pdfGeneratedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   analysis   VideoAnalysis?

@@ -26,7 +26,7 @@ export default async function SourceDetail({ params }: { params: { id: string } 
         <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
           ← חזרה למקורות
         </Link>
-        <DownloadPdfButton sourceId={source.id} />
+        <DownloadPdfButton sourceId={source.id} hasCached={!!source.pdfBlobUrl} />
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-8">

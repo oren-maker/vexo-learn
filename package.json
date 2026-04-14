@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.88.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
+    "@react-pdf/renderer": "^4.4.1",
     "@vercel/blob": "^2.3.3",
     "@vercel/functions": "^3.4.3",
     "instagram-url-direct": "^2.0.7",
