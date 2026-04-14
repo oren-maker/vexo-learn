@@ -171,8 +171,15 @@ export type PdfSourceData = {
   url: string | null;
   prompt: string;
   addedBy: string | null;
+  type: string;
+  status: string;
   createdAt: Date;
+  updatedAt: Date;
   thumbnail: string | null;
+  blobUrl: string | null;
+  lineageNotes: string | null;
+  captionEnglish?: string | null;
+  engine?: string | null;
   analysis: {
     description: string | null;
     style: string | null;
@@ -182,8 +189,22 @@ export type PdfSourceData = {
     tags: string[];
     howTo: string[];
     insights: string[];
+    promptAlignment: number | null;
+    knowledgeNodes: Array<{
+      type: string;
+      title: string;
+      body: string;
+      confidence: number;
+      tags: string[];
+    }>;
   } | null;
   generatedImages?: Array<{ blobUrl: string; model: string; usdCost: number; createdAt: Date }>;
+  parent?: { id: string; title: string | null; addedBy: string | null } | null;
+  children?: Array<{ id: string; title: string | null; addedBy: string | null; lineageNotes: string | null; createdAt: Date }>;
+  stats?: {
+    totalCostForSource: number;
+    apiCallsForSource: number;
+  };
 };
 
 function PdfDoc({ s }: { s: PdfSourceData }) {
@@ -221,8 +242,27 @@ function PdfDoc({ s }: { s: PdfSourceData }) {
           {a?.mood && <Text style={styles.metaPill}>Mood: {a.mood}</Text>}
           {a?.difficulty && <Text style={styles.metaPill}>Level: {a.difficulty}</Text>}
           {s.addedBy && <Text style={styles.metaPill}>Source: {s.addedBy}</Text>}
+          {s.type && <Text style={styles.metaPill}>Type: {s.type}</Text>}
+          {s.status && <Text style={styles.metaPill}>Status: {s.status}</Text>}
+          {s.engine && <Text style={styles.metaPill}>Engine: {s.engine}</Text>}
+          {a?.promptAlignment != null && <Text style={styles.metaPill}>Alignment: {a.promptAlignment}/10</Text>}
           <Text style={styles.metaPill}>Techniques: {a?.techniques.length || 0}</Text>
+          {(a?.knowledgeNodes?.length ?? 0) > 0 && (
+            <Text style={styles.metaPill}>Nodes: {a!.knowledgeNodes.length}</Text>
+          )}
+          {s.stats?.totalCostForSource != null && s.stats.totalCostForSource > 0 && (
+            <Text style={styles.metaPill}>Cost: ${s.stats.totalCostForSource.toFixed(4)}</Text>
+          )}
         </View>
+
+        {s.captionEnglish && (
+          <>
+            <Text style={styles.sectionLabel}>תרגום הכיתוב · CAPTION (EN)</Text>
+            <View style={styles.captionBox}>
+              <Text>{s.captionEnglish}</Text>
+            </View>
+          </>
+        )}
 
         {a?.description && (
           <>
@@ -283,6 +323,96 @@ function PdfDoc({ s }: { s: PdfSourceData }) {
             <View style={styles.techRow}>
               {a.tags.map((t, i) => (
                 <Text key={i} style={styles.tagChip}>#{t}</Text>
+              ))}
+            </View>
+          </>
+        )}
+
+        {a && a.knowledgeNodes.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>
+              Knowledge Nodes ({a.knowledgeNodes.length})
+            </Text>
+            <View>
+              {a.knowledgeNodes.slice(0, 40).map((n, i) => (
+                <View
+                  key={i}
+                  style={{
+                    backgroundColor: PALETTE.softBg,
+                    borderRadius: 4,
+                    padding: 8,
+                    marginBottom: 4,
+                    border: `1 solid ${PALETTE.border}`,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                    <Text style={{ fontSize: 7, color: PALETTE.accent2, fontWeight: 700, textTransform: "uppercase" }}>
+                      {n.type}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: PALETTE.muted }}>
+                      {Math.round(n.confidence * 100)}%
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 9, color: PALETTE.ink, fontWeight: 500 }}>{n.title}</Text>
+                  {n.body && n.body !== n.title && (
+                    <Text style={{ fontSize: 8, color: PALETTE.text, marginTop: 2 }}>{n.body}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {s.parent && (
+          <>
+            <Text style={styles.sectionLabel}>⬆ פרומפט הורה · PARENT</Text>
+            <View style={{ backgroundColor: PALETTE.softBg, padding: 10, borderRadius: 4, border: `1 solid ${PALETTE.border}` }}>
+              <Text style={{ fontSize: 10, color: PALETTE.ink, fontWeight: 600 }}>
+                {s.parent.title || "(no title)"}
+              </Text>
+              {s.parent.addedBy && (
+                <Text style={{ fontSize: 7, color: PALETTE.muted, marginTop: 2 }}>{s.parent.addedBy}</Text>
+              )}
+              {s.lineageNotes && (
+                <Text style={{ fontSize: 9, color: PALETTE.text, marginTop: 6, fontStyle: "italic" }}>
+                  💡 מה הועתק/הותאם: {s.lineageNotes}
+                </Text>
+              )}
+            </View>
+          </>
+        )}
+
+        {s.children && s.children.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>
+              ⬇ פרומפטים שנולדו מכאן · CHILDREN ({s.children.length})
+            </Text>
+            <View>
+              {s.children.map((c, i) => (
+                <View
+                  key={i}
+                  style={{
+                    backgroundColor: PALETTE.softBg,
+                    padding: 8,
+                    borderRadius: 4,
+                    marginBottom: 4,
+                    border: `1 solid ${PALETTE.border}`,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 9, color: PALETTE.ink, fontWeight: 600 }}>
+                      {c.title || "(no title)"}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: PALETTE.muted }}>
+                      {new Date(c.createdAt).toLocaleDateString("he-IL")}
+                    </Text>
+                  </View>
+                  {c.lineageNotes && (
+                    <Text style={{ fontSize: 8, color: PALETTE.text, marginTop: 4, fontStyle: "italic" }}>
+                      {c.lineageNotes}
+                    </Text>
+                  )}
+                </View>
               ))}
             </View>
           </>

@@ -13,25 +13,50 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const source = await prisma.learnSource.findUnique({
     where: { id: params.id },
-    include: { analysis: true },
+    include: {
+      analysis: { include: { knowledgeNodes: true } },
+      parentSource: { select: { id: true, title: true, addedBy: true } },
+      children: {
+        select: { id: true, title: true, addedBy: true, lineageNotes: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
   });
   if (!source) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const generatedImages = await prisma.generatedImage.findMany({
-    where: { sourceId: source.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [generatedImages, apiUsage] = await Promise.all([
+    prisma.generatedImage.findMany({
+      where: { sourceId: source.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.apiUsage.aggregate({
+      where: { sourceId: source.id },
+      _sum: { usdCost: true },
+      _count: true,
+    }),
+  ]);
 
-  // Cache validity: regenerate if a new image was added after last PDF generation,
-  // or if analysis/source was updated after last PDF generation.
   const latestImage = generatedImages[0]?.createdAt;
   const isStale =
     !source.pdfGeneratedAt ||
     (latestImage && latestImage > source.pdfGeneratedAt) ||
-    (source.updatedAt > source.pdfGeneratedAt);
+    source.updatedAt > source.pdfGeneratedAt;
 
   if (!force && source.pdfBlobUrl && !isStale) {
     return NextResponse.redirect(source.pdfBlobUrl, 302);
+  }
+
+  // Parse rawGemini for engine + captionEnglish if available
+  let captionEnglish: string | null = null;
+  let engine: string | null = null;
+  if (source.analysis?.rawGemini) {
+    try {
+      const raw = JSON.parse(source.analysis.rawGemini);
+      if (raw.captionEnglish) captionEnglish = String(raw.captionEnglish);
+      if (raw.engine) engine = String(raw.engine);
+    } catch {
+      // ignore
+    }
   }
 
   const data: PdfSourceData = {
@@ -40,8 +65,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     url: source.url,
     prompt: source.prompt,
     addedBy: source.addedBy,
+    type: source.type,
+    status: source.status,
     createdAt: source.createdAt,
+    updatedAt: source.updatedAt,
     thumbnail: source.thumbnail,
+    blobUrl: source.blobUrl,
+    lineageNotes: source.lineageNotes,
+    captionEnglish,
+    engine,
     analysis: source.analysis
       ? {
           description: source.analysis.description,
@@ -52,6 +84,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           tags: source.analysis.tags,
           howTo: source.analysis.howTo,
           insights: source.analysis.insights,
+          promptAlignment: source.analysis.promptAlignment,
+          knowledgeNodes: source.analysis.knowledgeNodes.map((n) => ({
+            type: n.type,
+            title: n.title,
+            body: n.body,
+            confidence: n.confidence,
+            tags: n.tags,
+          })),
         }
       : null,
     generatedImages: generatedImages.map((g) => ({
@@ -60,6 +100,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       usdCost: g.usdCost,
       createdAt: g.createdAt,
     })),
+    parent: source.parentSource
+      ? { id: source.parentSource.id, title: source.parentSource.title, addedBy: source.parentSource.addedBy }
+      : null,
+    children: source.children.map((c) => ({
+      id: c.id,
+      title: c.title,
+      addedBy: c.addedBy,
+      lineageNotes: c.lineageNotes,
+      createdAt: c.createdAt,
+    })),
+    stats: {
+      totalCostForSource: apiUsage._sum.usdCost || 0,
+      apiCallsForSource: apiUsage._count,
+    },
   };
 
   let buffer: Buffer;
