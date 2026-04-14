@@ -74,7 +74,7 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
     return;
   }
 
-  const row = await prisma.generatedVideo.findUnique({ where: { id: videoId }, include: { } });
+  const row = await prisma.generatedVideo.findUnique({ where: { id: videoId } });
   if (!row) return;
   const source = await prisma.learnSource.findUnique({
     where: { id: row.sourceId },
