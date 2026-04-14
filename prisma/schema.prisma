@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model LearnSource {
+  id         String   @id @default(cuid())
+  type       String   // "instructor_url" | "cedance" | "free_api"
+  url        String?
+  prompt     String
+  title      String?
+  thumbnail  String?
+  duration   Int?
+  localPath  String?  // stored video file (instead of S3 for local MVP)
+  externalId String?  @unique
+  status     String   @default("pending") // pending | processing | complete | failed
+  error      String?
+  addedBy    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  analysis   VideoAnalysis?
+  subscriberPrompts SubscriberPrompt[]
+}
+
+model VideoAnalysis {
+  id              String   @id @default(cuid())
+  sourceId        String   @unique
+  source          LearnSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  description     String
+  techniques      String   // JSON array
+  howTo           String   // JSON array
+  tags            String   // JSON array
+  style           String?
+  mood            String?
+  difficulty      String?
+  insights        String   // JSON array
+  promptAlignment Int?
+  rawGemini       String   // JSON blob
+  createdAt       DateTime @default(now())
+  knowledgeNodes  KnowledgeNode[]
+}
+
+model KnowledgeNode {
+  id             String   @id @default(cuid())
+  type           String   // "technique" | "style" | "how_to" | "insight"
+  title          String
+  body           String
+  tags           String   // JSON array
+  confidence     Float    @default(0.8)
+  analysisId     String
+  analysis       VideoAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  sentToDirector Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model SubscriberPrompt {
+  id        String   @id @default(cuid())
+  userId    String
+  sourceId  String
+  source    LearnSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  viewed    Boolean  @default(false)
+  saved     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
