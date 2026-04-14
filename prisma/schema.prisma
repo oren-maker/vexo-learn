@@ -114,3 +114,23 @@ model GeneratedImage {
   @@index([sourceId])
   @@index([createdAt])
 }
+
+model GeneratedVideo {
+  id           String   @id @default(cuid())
+  sourceId     String
+  blobUrl      String
+  model        String     // "veo-3.0-generate-preview" | "veo-3.0-fast-generate-preview"
+  usdCost      Float      @default(0)
+  durationSec  Int        @default(8)
+  aspectRatio  String     @default("16:9")
+  promptHead   String     @db.Text
+  status       String     @default("pending")
+  operationId  String?
+  error        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([sourceId])
+  @@index([status])
+  @@index([createdAt])
+}

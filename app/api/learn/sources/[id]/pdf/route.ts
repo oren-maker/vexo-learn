@@ -24,8 +24,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!source) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const [generatedImages, apiUsage] = await Promise.all([
+  const [generatedImages, generatedVideos, apiUsage] = await Promise.all([
     prisma.generatedImage.findMany({
+      where: { sourceId: source.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.generatedVideo.findMany({
       where: { sourceId: source.id },
       orderBy: { createdAt: "desc" },
     }),
@@ -99,6 +103,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       model: g.model,
       usdCost: g.usdCost,
       createdAt: g.createdAt,
+    })),
+    generatedVideos: generatedVideos.map((v) => ({
+      blobUrl: v.blobUrl,
+      model: v.model,
+      usdCost: v.usdCost,
+      durationSec: v.durationSec,
+      aspectRatio: v.aspectRatio,
+      createdAt: v.createdAt,
+      status: v.status,
     })),
     parent: source.parentSource
       ? { id: source.parentSource.id, title: source.parentSource.title, addedBy: source.parentSource.addedBy }

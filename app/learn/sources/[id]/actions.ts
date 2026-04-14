@@ -5,7 +5,30 @@ import { extractInstagram } from "@/lib/instagram";
 import { extractPromptFromVideo } from "@/lib/gemini-prompt-from-video";
 import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { generateImageFromPrompt } from "@/lib/gemini-image";
+import { generateVideoVEO3, estimateVeoCost, type VeoModel } from "@/lib/gemini-video-gen";
 import { revalidatePath } from "next/cache";
+
+export async function generateVideoAction(
+  sourceId: string,
+  opts: { fast?: boolean; durationSec?: number; aspectRatio?: "16:9" | "9:16" } = {},
+) {
+  const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
+  if (!source) return { ok: false as const, error: "source not found" };
+  const model: VeoModel = opts.fast === false ? "veo-3.0-generate-preview" : "veo-3.0-fast-generate-preview";
+  const duration = opts.durationSec || 8;
+  const estimate = estimateVeoCost(model, duration);
+  try {
+    const r = await generateVideoVEO3(source.prompt, sourceId, {
+      model,
+      durationSec: duration,
+      aspectRatio: opts.aspectRatio || "16:9",
+    });
+    revalidatePath(`/learn/sources/${sourceId}`);
+    return { ok: true as const, blobUrl: r.blobUrl, cost: r.usdCost, model: r.model, videoId: r.videoId };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e).slice(0, 300), estimate };
+  }
+}
 
 export async function generateImageAction(sourceId: string) {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });

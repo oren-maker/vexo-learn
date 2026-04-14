@@ -7,7 +7,9 @@ import SuggestSimilar from "@/components/suggest-similar";
 import DownloadPdfButton from "@/components/download-pdf-button";
 import RetryAnalysisButton from "@/components/retry-analysis-button";
 import GenerateImageButton from "@/components/generate-image-button";
+import GenerateVideoButton from "@/components/generate-video-button";
 import GeneratedImagesGallery from "@/components/generated-images-gallery";
+import GeneratedVideosGallery from "@/components/generated-videos-gallery";
 import PromptLineage from "@/components/prompt-lineage";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +31,9 @@ export default async function SourceDetail({ params }: { params: { id: string } 
         <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
           ← חזרה למקורות
         </Link>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <GenerateImageButton sourceId={source.id} />
+          <GenerateVideoButton sourceId={source.id} />
           <DownloadPdfButton sourceId={source.id} hasCached={!!source.pdfBlobUrl} />
         </div>
       </div>
@@ -142,6 +145,7 @@ export default async function SourceDetail({ params }: { params: { id: string } 
       )}
 
       <div className="mt-6">
+        <GeneratedVideosGallery sourceId={source.id} />
         <GeneratedImagesGallery sourceId={source.id} />
         <PromptLineage sourceId={source.id} />
         <SuggestSimilar sourceId={source.id} sourceTitle={source.title} />

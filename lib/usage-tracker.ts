@@ -41,6 +41,20 @@ export const PRICING = {
     outputPer1M: 15.00,
     imagePer: 0,
   },
+  "veo-3.0-generate-preview": {
+    engine: "gemini-video" as const,
+    inputPer1M: 0,
+    outputPer1M: 0,
+    imagePer: 0,
+    secondPerUsd: 0.75,
+  },
+  "veo-3.0-fast-generate-preview": {
+    engine: "gemini-video" as const,
+    inputPer1M: 0,
+    outputPer1M: 0,
+    imagePer: 0,
+    secondPerUsd: 0.40,
+  },
 } as const;
 
 export type ModelKey = keyof typeof PRICING;
@@ -53,13 +67,14 @@ export type Operation =
   | "translate"
   | "reference-search";
 
-export function calcCost(model: string, inputTokens: number, outputTokens: number, imagesOut: number): number {
+export function calcCost(model: string, inputTokens: number, outputTokens: number, imagesOut: number, videoSeconds = 0): number {
   const p = (PRICING as any)[model];
   if (!p) return 0;
   const inputCost = (inputTokens / 1_000_000) * p.inputPer1M;
   const outputCost = (outputTokens / 1_000_000) * p.outputPer1M;
   const imageCost = imagesOut * p.imagePer;
-  return Math.round((inputCost + outputCost + imageCost) * 1_000_000) / 1_000_000; // 6 decimals
+  const videoCost = videoSeconds * (p.secondPerUsd || 0);
+  return Math.round((inputCost + outputCost + imageCost + videoCost) * 1_000_000) / 1_000_000;
 }
 
 export async function logUsage(params: {
@@ -80,6 +95,7 @@ export async function logUsage(params: {
     params.inputTokens || 0,
     params.outputTokens || 0,
     params.imagesOut || 0,
+    params.videoSeconds || 0,
   );
   try {
     await prisma.apiUsage.create({

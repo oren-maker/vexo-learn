@@ -199,6 +199,7 @@ export type PdfSourceData = {
     }>;
   } | null;
   generatedImages?: Array<{ blobUrl: string; model: string; usdCost: number; createdAt: Date }>;
+  generatedVideos?: Array<{ blobUrl: string; model: string; usdCost: number; durationSec: number; aspectRatio: string; createdAt: Date; status: string }>;
   parent?: { id: string; title: string | null; addedBy: string | null } | null;
   children?: Array<{ id: string; title: string | null; addedBy: string | null; lineageNotes: string | null; createdAt: Date }>;
   stats?: {
@@ -412,6 +413,45 @@ function PdfDoc({ s }: { s: PdfSourceData }) {
                       {c.lineageNotes}
                     </Text>
                   )}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {s.generatedVideos && s.generatedVideos.filter((v) => v.status === "complete").length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>
+              סרטונים שחוללו · GENERATED VIDEOS ({s.generatedVideos.filter((v) => v.status === "complete").length})
+            </Text>
+            <View>
+              {s.generatedVideos.filter((v) => v.status === "complete").map((v, i) => (
+                <View
+                  key={i}
+                  style={{
+                    backgroundColor: PALETTE.softBg,
+                    padding: 10,
+                    borderRadius: 4,
+                    marginBottom: 6,
+                    border: `1 solid ${PALETTE.border}`,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 9, color: PALETTE.ink, fontWeight: 600 }}>
+                      🎬 {v.model.replace("veo-3.0-", "VEO 3 ").replace("-preview", "")}
+                    </Text>
+                    <Text style={{ fontSize: 8, color: PALETTE.muted, marginTop: 2 }}>
+                      {v.durationSec}s · {v.aspectRatio} · {new Date(v.createdAt).toLocaleDateString("he-IL")}
+                    </Text>
+                    <Link src={v.blobUrl} style={{ fontSize: 7, color: PALETTE.accent, marginTop: 2 }}>
+                      {v.blobUrl.slice(0, 60)}...
+                    </Link>
+                  </View>
+                  <Text style={{ fontSize: 11, color: PALETTE.amber, fontWeight: 700 }}>
+                    ${v.usdCost.toFixed(2)}
+                  </Text>
                 </View>
               ))}
             </View>
