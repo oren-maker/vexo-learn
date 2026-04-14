@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import StatusBadge from "@/components/status-badge";
 import AutoRefresh from "@/components/auto-refresh";
 import SuggestSimilar from "@/components/suggest-similar";
+import DownloadPdfButton from "@/components/download-pdf-button";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,11 @@ export default async function SourceDetail({ params }: { params: { id: string } 
     <div className="max-w-5xl mx-auto">
       {isLive && <AutoRefresh intervalMs={5000} />}
 
-      <div className="mb-5">
+      <div className="mb-5 flex items-center justify-between">
         <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
           ← חזרה למקורות
         </Link>
+        <DownloadPdfButton sourceId={source.id} />
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-8">

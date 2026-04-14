@@ -17,6 +17,7 @@
     "@vercel/functions": "^3.4.3",
     "instagram-url-direct": "^2.0.7",
     "next": "14.2.35",
+    "pdf-lib": "^1.17.1",
     "react": "^18",
     "react-dom": "^18"
   },
