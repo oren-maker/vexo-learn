@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import { promises as fs } from "fs";
 import path from "path";
+import os from "os";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -55,40 +56,50 @@ function parseResponse(text: string): VideoAnalysisResult {
   };
 }
 
-export async function analyzeLocalVideo(
-  localPath: string,
+// Analyze a video from a public URL (Pexels, Vercel Blob, direct CDN MP4).
+// Fetches server-side, uploads buffer to Gemini File API, runs generateContent, cleans up.
+export async function analyzeVideoFromUrl(
+  videoUrl: string,
   userPrompt: string
 ): Promise<{ analysis: VideoAnalysisResult; raw: string }> {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר ב-env");
+  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
+
+  const res = await fetch(videoUrl);
+  if (!res.ok) throw new Error(`fetch video failed: ${res.status}`);
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const contentType = res.headers.get("content-type") || "video/mp4";
+  const mimeType = contentType.split(";")[0].trim() || "video/mp4";
+
+  // GoogleAIFileManager.uploadFile requires a file path. On Vercel, /tmp is writable (up to 512MB).
+  const tmpDir = os.tmpdir();
+  const tmpFile = path.join(tmpDir, `vexo-learn-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
+  await fs.writeFile(tmpFile, buffer);
 
   const fileManager = new GoogleAIFileManager(API_KEY);
-  const genAI = new GoogleGenerativeAI(API_KEY);
-
-  const ext = path.extname(localPath).toLowerCase().replace(".", "");
-  const mimeType =
-    ext === "mp4" ? "video/mp4" :
-    ext === "webm" ? "video/webm" :
-    ext === "mov" ? "video/quicktime" :
-    "video/mp4";
-
-  const uploaded = await fileManager.uploadFile(localPath, {
-    mimeType,
-    displayName: path.basename(localPath),
-  });
+  let uploaded;
+  try {
+    uploaded = await fileManager.uploadFile(tmpFile, {
+      mimeType,
+      displayName: `video-${Date.now()}`,
+    });
+  } finally {
+    fs.unlink(tmpFile).catch(() => {});
+  }
 
   let file = uploaded.file;
   const start = Date.now();
   while (file.state === FileState.PROCESSING) {
-    if (Date.now() - start > 5 * 60 * 1000) throw new Error("Gemini upload processing timeout");
-    await new Promise((r) => setTimeout(r, 5000));
+    if (Date.now() - start > 4 * 60 * 1000) throw new Error("Gemini upload processing timeout");
+    await new Promise((r) => setTimeout(r, 4000));
     file = await fileManager.getFile(file.name);
   }
+  if (file.state !== FileState.ACTIVE) throw new Error(`Gemini file state: ${file.state}`);
 
-  if (file.state !== FileState.ACTIVE) {
-    throw new Error(`Gemini file state: ${file.state}`);
-  }
-
+  const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+
   const result = await model.generateContent([
     { fileData: { mimeType: file.mimeType, fileUri: file.uri } },
     { text: buildAnalysisPrompt(userPrompt) },
@@ -97,16 +108,9 @@ export async function analyzeLocalVideo(
   const text = result.response.text();
   const analysis = parseResponse(text);
 
-  // cleanup the uploaded file
   try {
     await fileManager.deleteFile(file.name);
   } catch {}
 
   return { analysis, raw: text };
-}
-
-export async function cleanupLocalFile(p: string): Promise<void> {
-  try {
-    await fs.unlink(p);
-  } catch {}
 }

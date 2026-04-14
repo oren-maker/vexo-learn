@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import StatusBadge from "@/components/status-badge";
 import AutoRefresh from "@/components/auto-refresh";
 
@@ -91,10 +91,10 @@ export default async function SourceDetail({ params }: { params: { id: string } 
             </div>
           )}
 
-          <ListSection title="טכניקות" items={jsonArray.parse(source.analysis.techniques)} color="cyan" />
-          <ListSection title="How-To" items={jsonArray.parse(source.analysis.howTo)} color="blue" numbered />
-          <ListSection title="תובנות" items={jsonArray.parse(source.analysis.insights)} color="emerald" />
-          <TagsSection tags={jsonArray.parse(source.analysis.tags)} />
+          <ListSection title="טכניקות" items={source.analysis.techniques} color="cyan" />
+          <ListSection title="How-To" items={source.analysis.howTo} color="blue" numbered />
+          <ListSection title="תובנות" items={source.analysis.insights} color="emerald" />
+          <TagsSection tags={source.analysis.tags} />
 
           {source.analysis.knowledgeNodes.length > 0 && (
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">

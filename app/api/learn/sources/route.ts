@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { validateUrl } from "@/lib/url-validator";
 import { runPipeline } from "@/lib/pipeline";
+
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -30,26 +33,30 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { url, prompt, addedBy } = body;
-  if (!url || !prompt) return NextResponse.json({ error: "url ו-prompt נדרשים" }, { status: 400 });
+  const { url, blobUrl, title, thumbnail, duration, prompt, sourceType, addedBy } = body;
 
-  const check = validateUrl(url);
+  const videoUrl = blobUrl || url;
+  if (!videoUrl || !prompt) return NextResponse.json({ error: "url/blobUrl + prompt נדרשים" }, { status: 400 });
+
+  const check = validateUrl(videoUrl);
   if (!check.ok) return NextResponse.json({ error: check.reason }, { status: 400 });
 
   const source = await prisma.learnSource.create({
     data: {
-      type: "instructor_url",
-      url,
+      type: sourceType || (blobUrl ? "upload" : "instructor_url"),
+      url: url || null,
+      blobUrl: videoUrl,
+      title: title || null,
+      thumbnail: thumbnail || null,
+      duration: duration || null,
       prompt: String(prompt).trim(),
       addedBy: addedBy || null,
       status: "pending",
     },
   });
 
-  // Fire-and-forget pipeline (don't await - return immediately so UI stays responsive).
-  setImmediate(() => {
-    runPipeline(source.id).catch(() => {});
-  });
+  // Background pipeline - returns immediately, Vercel keeps function alive via waitUntil.
+  waitUntil(runPipeline(source.id).catch(() => {}));
 
   return NextResponse.json(source, { status: 201 });
 }

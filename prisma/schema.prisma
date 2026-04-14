@@ -3,19 +3,20 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model LearnSource {
   id         String   @id @default(cuid())
-  type       String   // "instructor_url" | "cedance" | "free_api"
+  type       String   // "instructor_url" | "cedance" | "free_api" | "upload"
   url        String?
   prompt     String
   title      String?
   thumbnail  String?
   duration   Int?
-  localPath  String?  // stored video file (instead of S3 for local MVP)
+  blobUrl    String?  // Vercel Blob URL or external MP4 URL
   externalId String?  @unique
   status     String   @default("pending") // pending | processing | complete | failed
   error      String?
@@ -24,6 +25,9 @@ model LearnSource {
   updatedAt  DateTime @updatedAt
   analysis   VideoAnalysis?
   subscriberPrompts SubscriberPrompt[]
+
+  @@index([status])
+  @@index([type])
 }
 
 model VideoAnalysis {
@@ -31,15 +35,15 @@ model VideoAnalysis {
   sourceId        String   @unique
   source          LearnSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   description     String
-  techniques      String   // JSON array
-  howTo           String   // JSON array
-  tags            String   // JSON array
+  techniques      String[] @default([])
+  howTo           String[] @default([])
+  tags            String[] @default([])
   style           String?
   mood            String?
   difficulty      String?
-  insights        String   // JSON array
+  insights        String[] @default([])
   promptAlignment Int?
-  rawGemini       String   // JSON blob
+  rawGemini       String
   createdAt       DateTime @default(now())
   knowledgeNodes  KnowledgeNode[]
 }
@@ -49,12 +53,15 @@ model KnowledgeNode {
   type           String   // "technique" | "style" | "how_to" | "insight"
   title          String
   body           String
-  tags           String   // JSON array
+  tags           String[] @default([])
   confidence     Float    @default(0.8)
   analysisId     String
   analysis       VideoAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
   sentToDirector Boolean  @default(false)
   createdAt      DateTime @default(now())
+
+  @@index([sentToDirector])
+  @@index([type])
 }
 
 model SubscriberPrompt {

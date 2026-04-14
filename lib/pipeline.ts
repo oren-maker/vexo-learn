@@ -1,9 +1,8 @@
-// Processing pipeline - runs sequentially in-process (simpler than BullMQ for MVP).
-// Triggered from POST /learn/sources. Call in "fire-and-forget" mode via setTimeout.
+// Vercel-serverless pipeline. Triggered via `waitUntil` from the POST handler
+// so the function can return immediately while analysis runs in background.
 
-import { prisma, jsonArray } from "./db";
-import { fetchMetadata, downloadVideo, hasYtDlp } from "./ytdlp";
-import { analyzeLocalVideo, cleanupLocalFile } from "./gemini";
+import { prisma } from "./db";
+import { analyzeVideoFromUrl } from "./gemini";
 import type { VideoAnalysisResult } from "./gemini";
 
 function extractKnowledgeNodes(
@@ -52,15 +51,7 @@ function extractKnowledgeNodes(
 
 export async function runPipeline(sourceId: string): Promise<void> {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
-  if (!source) return;
-  if (source.type !== "instructor_url" && source.type !== "free_api") return;
-  if (!source.url) {
-    await prisma.learnSource.update({
-      where: { id: sourceId },
-      data: { status: "failed", error: "URL חסר" },
-    });
-    return;
-  }
+  if (!source || !source.blobUrl) return;
 
   try {
     await prisma.learnSource.update({
@@ -68,47 +59,24 @@ export async function runPipeline(sourceId: string): Promise<void> {
       data: { status: "processing" },
     });
 
-    // Step 1: Metadata (best-effort)
-    const ytdlpOk = await hasYtDlp();
-    if (!ytdlpOk) throw new Error("yt-dlp לא מותקן ב-server");
-
-    const meta = await fetchMetadata(source.url);
-    await prisma.learnSource.update({
-      where: { id: sourceId },
-      data: {
-        title: meta.title || source.title,
-        thumbnail: meta.thumbnail || source.thumbnail,
-        duration: meta.duration || source.duration,
-      },
-    });
-
-    // Step 2: Download
-    const { localPath } = await downloadVideo(source.url, sourceId);
-    await prisma.learnSource.update({
-      where: { id: sourceId },
-      data: { localPath },
-    });
-
-    // Step 3: Gemini analysis
-    const { analysis, raw } = await analyzeLocalVideo(localPath, source.prompt);
+    const { analysis, raw } = await analyzeVideoFromUrl(source.blobUrl, source.prompt);
 
     const savedAnalysis = await prisma.videoAnalysis.create({
       data: {
         sourceId,
         description: analysis.description,
-        techniques: jsonArray.stringify(analysis.techniques),
-        howTo: jsonArray.stringify(analysis.howTo),
-        tags: jsonArray.stringify(analysis.tags),
+        techniques: analysis.techniques,
+        howTo: analysis.howTo,
+        tags: analysis.tags,
         style: analysis.style,
         mood: analysis.mood,
         difficulty: analysis.difficulty,
-        insights: jsonArray.stringify(analysis.insights),
+        insights: analysis.insights,
         promptAlignment: analysis.promptAlignment,
         rawGemini: raw,
       },
     });
 
-    // Step 4: Extract knowledge nodes
     const nodes = extractKnowledgeNodes(analysis);
     if (nodes.length > 0) {
       await prisma.knowledgeNode.createMany({
@@ -116,21 +84,17 @@ export async function runPipeline(sourceId: string): Promise<void> {
           type: n.type,
           title: n.title,
           body: n.body,
-          tags: jsonArray.stringify(n.tags),
+          tags: n.tags,
           confidence: n.confidence,
           analysisId: savedAnalysis.id,
         })),
       });
     }
 
-    // Step 5: Done
     await prisma.learnSource.update({
       where: { id: sourceId },
       data: { status: "complete" },
     });
-
-    // Step 6: Cleanup local file (keep analysis, drop video bytes)
-    await cleanupLocalFile(localPath);
   } catch (e: any) {
     await prisma.learnSource.update({
       where: { id: sourceId },

@@ -1,4 +1,4 @@
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export default async function KnowledgeExplorer({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {nodes.map((n) => {
-          const tags = jsonArray.parse(n.tags);
+          const tags = n.tags;
           return (
             <div key={n.id} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">

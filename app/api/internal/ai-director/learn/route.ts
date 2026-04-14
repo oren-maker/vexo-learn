@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
-// AI Director pulls new knowledge nodes. Also supports POST to mark as consumed.
-// Protected by x-internal-key header.
 function checkAuth(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
   return key && key === process.env.INTERNAL_API_KEY;
@@ -26,13 +24,13 @@ export async function GET(req: NextRequest) {
       type: n.type,
       title: n.title,
       body: n.body,
-      tags: jsonArray.parse(n.tags),
+      tags: n.tags,
       confidence: n.confidence,
       context: {
         style: n.analysis.style,
         mood: n.analysis.mood,
         difficulty: n.analysis.difficulty,
-        tags: jsonArray.parse(n.analysis.tags),
+        tags: n.analysis.tags,
       },
       sourceType: "vexo-learn",
       sourceId: n.analysis.sourceId,

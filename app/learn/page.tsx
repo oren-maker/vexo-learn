@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +67,7 @@ export default async function LearnFeed() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sources.map((s) => {
-            const tags = s.analysis ? jsonArray.parse(s.analysis.tags) : [];
+            const tags = s.analysis?.tags || [];
             return (
               <Link
                 key={s.id}

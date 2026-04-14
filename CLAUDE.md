@@ -36,7 +36,7 @@ app/
     sync/                 CeDance sync UI
 components/                Shared UI (sidebar, badges, buttons)
 lib/
-  db.ts                   Prisma + jsonArray helper (SQLite arrays)
+  db.ts                   Prisma client
   gemini.ts               File API upload + generateContent
   ytdlp.ts                metadata + download
   pexels.ts               video search
@@ -67,11 +67,13 @@ prisma/schema.prisma       LearnSource, VideoAnalysis, KnowledgeNode, Subscriber
 - שמות קבצים באנגלית
 - Dark theme navy+cyan (עקבי עם VEXO Studio)
 
-## הבדלים מהאיפיון המקורי
-- **Monolith במקום microservice** - בחרנו Next.js single app במקום Fastify+Worker נפרדים, כי זה קל יותר ל-deploy ל-Vercel. Migration ל-monorepo תעשה בעתיד.
-- **Pipeline sequential במקום BullMQ** - רצים inline עם `setImmediate`. אם עומס יגדל, נעבור ל-queue.
-- **SQLite במקום Postgres** - ל-MVP. Neon/Vercel Postgres כשיהיה צורך במקביליות אמיתית.
-- **Local filesystem במקום S3** - ל-MVP. הוידאו נמחק אחרי ניתוח.
+## הבדלים מהאיפיון המקורי (Vercel deployment)
+- **Monolith במקום microservice** - Next.js single app. רץ על Vercel כמו VEXO.
+- **Pipeline ב-waitUntil במקום BullMQ** - `@vercel/functions` `waitUntil` מאריך את חיי הפונקציה לאחר שהתגובה נשלחה. maxDuration 300s (Pro).
+- **Postgres (Supabase/Neon/Vercel Postgres)** - same setup as VEXO. Build script: `prisma generate && prisma db push && next build`.
+- **Vercel Blob במקום S3** - העלאת קבצים ישירה מהדפדפן דרך `@vercel/blob/client`.
+- **ללא yt-dlp** - Vercel serverless לא תומך. במקום זה: העלאת קובץ ל-Blob, או URL ישיר (Pexels/Pixabay/MP4 public). YouTube/Vimeo חסומים במפורש.
+- **Gemini File API** - קובץ מורד מה-URL ל-`/tmp` (512MB זמין ב-Vercel), מועלה ל-Gemini, ונמחק.
 
 ## אינטגרציה עתידית עם VEXO Studio
 ה-AI Director ב-`CLAUDE/vexo` יעשה GET ל-`/api/internal/ai-director/learn` עם `x-internal-key`, יקבל `KnowledgeNode[]` מדורגים לפי confidence, ויזין אותם ל-vector store שלו.

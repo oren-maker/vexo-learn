@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
 function checkAuth(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
@@ -13,22 +13,19 @@ export async function GET(req: NextRequest, { params }: { params: { userId: stri
   const limit = Math.min(50, Number(searchParams.get("limit") || 10));
 
   const subs = await prisma.subscriberPrompt.findMany({
-    where: { userId: params.userId },
+    where: {
+      userId: params.userId,
+      ...(tags.length
+        ? { source: { analysis: { is: { tags: { hasSome: tags } } } } }
+        : {}),
+    },
     include: { source: { include: { analysis: true } } },
     orderBy: { createdAt: "desc" },
-    take: limit * 3,
+    take: limit,
   });
 
-  const filtered = tags.length
-    ? subs.filter((s) => {
-        if (!s.source.analysis) return false;
-        const arr = jsonArray.parse(s.source.analysis.tags);
-        return tags.some((t) => arr.includes(t));
-      })
-    : subs;
-
   return NextResponse.json({
-    items: filtered.slice(0, limit).map((s) => ({
+    items: subs.map((s) => ({
       id: s.id,
       viewed: s.viewed,
       saved: s.saved,
@@ -38,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: { userId: stri
       analysis: s.source.analysis
         ? {
             description: s.source.analysis.description,
-            tags: jsonArray.parse(s.source.analysis.tags),
+            tags: s.source.analysis.tags,
             difficulty: s.source.analysis.difficulty,
           }
         : null,

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { runPipeline } from "@/lib/pipeline";
 import { validateUrl } from "@/lib/url-validator";
 
-// User selects one of the 3 suggested videos → triggers full pipeline.
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const { downloadUrl, title, thumbnail, duration, prompt, addedBy } = await req.json();
   if (!downloadUrl || !prompt) return NextResponse.json({ error: "downloadUrl + prompt נדרשים" }, { status: 400 });
@@ -15,6 +17,7 @@ export async function POST(req: NextRequest) {
     data: {
       type: "free_api",
       url: downloadUrl,
+      blobUrl: downloadUrl,
       title: title || null,
       thumbnail: thumbnail || null,
       duration: duration || null,
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  setImmediate(() => runPipeline(source.id).catch(() => {}));
+  waitUntil(runPipeline(source.id).catch(() => {}));
 
   return NextResponse.json(source, { status: 201 });
 }

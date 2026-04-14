@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
-// For MVP: when there's no logged-in user, returns all "complete" sources as a public feed.
-// When userId provided, returns that subscriber's personal feed.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
@@ -24,23 +22,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items: subs });
   }
 
-  // Public / admin view
   const items = await prisma.learnSource.findMany({
-    where: { status: "complete" },
+    where: {
+      status: "complete",
+      ...(tags.length || difficulty
+        ? {
+            analysis: {
+              is: {
+                ...(tags.length ? { tags: { hasSome: tags } } : {}),
+                ...(difficulty ? { difficulty } : {}),
+              },
+            },
+          }
+        : {}),
+    },
     include: { analysis: true },
     orderBy: { createdAt: "desc" },
-    take: limit * 2,
+    take: limit,
   });
 
-  const filtered = items.filter((s) => {
-    if (!s.analysis) return true;
-    if (difficulty && s.analysis.difficulty !== difficulty) return false;
-    if (tags.length) {
-      const arr = jsonArray.parse(s.analysis.tags);
-      if (!tags.some((t) => arr.includes(t))) return false;
-    }
-    return true;
-  });
-
-  return NextResponse.json({ items: filtered.slice(0, limit) });
+  return NextResponse.json({ items });
 }

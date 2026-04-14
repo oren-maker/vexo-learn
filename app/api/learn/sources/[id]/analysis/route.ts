@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, jsonArray } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const analysis = await prisma.videoAnalysis.findUnique({
@@ -7,13 +7,5 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     include: { knowledgeNodes: true, source: true },
   });
   if (!analysis) return NextResponse.json({ error: "not found" }, { status: 404 });
-
-  return NextResponse.json({
-    ...analysis,
-    techniques: jsonArray.parse(analysis.techniques),
-    howTo: jsonArray.parse(analysis.howTo),
-    tags: jsonArray.parse(analysis.tags),
-    insights: jsonArray.parse(analysis.insights),
-    knowledgeNodes: analysis.knowledgeNodes.map((n) => ({ ...n, tags: jsonArray.parse(n.tags) })),
-  });
+  return NextResponse.json(analysis);
 }
