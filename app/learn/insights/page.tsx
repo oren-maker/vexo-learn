@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function InsightsPage() {
-  const [insights, latestSnapshot] = await Promise.all([
+  const [insights, latestSnapshot, snapshotCount] = await Promise.all([
     computeCorpusInsights(),
-    prisma.insightsSnapshot.findFirst({ orderBy: { takenAt: "desc" }, select: { takenAt: true } }),
+    prisma.insightsSnapshot.findFirst({ orderBy: { takenAt: "desc" }, select: { takenAt: true, summary: true } }),
+    prisma.insightsSnapshot.count(),
   ]);
   const t = insights.totals;
 
@@ -54,7 +55,12 @@ export default async function InsightsPage() {
         </div>
       </header>
 
-      <InsightsFreshness lastTakenAt={latestSnapshot?.takenAt.toISOString() || null} />
+      <InsightsFreshness
+        lastTakenAt={latestSnapshot?.takenAt.toISOString() || null}
+        snapshotIndex={snapshotCount}
+        snapshotTotal={snapshotCount}
+        summary={latestSnapshot?.summary || null}
+      />
 
       {/* Headline KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
