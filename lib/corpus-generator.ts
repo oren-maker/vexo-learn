@@ -65,6 +65,31 @@ function pick<T>(arr: T[], seed: number): T {
   return arr[Math.abs(seed) % arr.length];
 }
 
+// Rich phrase pools — modelled after the Instagram/Gemini-generated prompts
+const CHARACTER_DETAILS = [
+  "extremely natural subtle movements, breathing, and eye tension, characters maintain consistent faces, clothing, and hairstyles throughout without deformation, drift, or artifacts",
+  "movie-level realistic facial features, detailed skin pores, precise lip-sync and micro-expressions, no deformation, stable identity throughout",
+  "hyper-realistic skin and fabric textures, every fold and pore visible, consistent wardrobe and hair across all frames",
+];
+const VFX_DETAILS = [
+  "realistic particle dynamics (dust motes, sparks, or ember embers drift naturally through light), depth haze, precise motion blur on fast objects while slow objects stay sharp",
+  "volumetric light rays through atmospheric haze, lens flare on direct light sources, chromatic aberration at frame edges on peaks",
+  "impact shockwaves, fluid spray with realistic surface tension, debris with accurate physics and falling leaves/paper",
+];
+const COLOR_GRADES = [
+  "teal-orange cinematic color grade with crushed blacks",
+  "desaturated blue-gray palette with selective warm skin tones",
+  "vibrant high-contrast palette with rich saturation on primary colors only",
+  "warm golden-hour film-stock emulation with natural grain",
+  "cool monochrome with single accent color preserved",
+];
+const LENSES = [
+  "shot on anamorphic 35mm, f/2.8 for shallow depth of field",
+  "vintage 50mm prime lens, wide aperture for creamy bokeh",
+  "cinema zoom at 85mm compression, shallow focus, heavy bokeh",
+  "wide-angle 24mm for immersive feel, deep depth of field",
+];
+
 function buildTimecodedPrompt(seed: ReturnType<typeof SUBJECT_SEEDS.at>, idx: number, signatures: string[], cooccurPair?: [string, string]): string {
   if (!seed) return "";
   const duration = pick(DURATIONS, idx);
@@ -75,27 +100,44 @@ function buildTimecodedPrompt(seed: ReturnType<typeof SUBJECT_SEEDS.at>, idx: nu
   const lighting = pick(LIGHTING, idx);
   const camera = pick(CAMERA_MOVES, idx + 2);
   const sound = pick(SOUND, idx + 3);
+  const character = pick(CHARACTER_DETAILS, idx);
+  const vfx = pick(VFX_DETAILS, idx + 1);
+  const grade = pick(COLOR_GRADES, idx + 2);
+  const lens = pick(LENSES, idx);
 
   const signatureLine = signatures.length > 0
-    ? signatures.slice(0, 3).join(", ")
-    : "cinematic lighting, shallow depth of field, film grain";
+    ? signatures.slice(0, 4).join(", ")
+    : "cinematic composition, shallow depth of field, film grain, rich color grade";
 
   const cooccurLine = cooccurPair
-    ? `${cooccurPair[0]} combined with ${cooccurPair[1]}`
-    : "motion blur with anamorphic lens flares";
+    ? `${cooccurPair[0]} paired with ${cooccurPair[1]} for high visual impact`
+    : "motion blur combined with anamorphic lens flares";
+
+  const [a1, a2, a3] = seed.action.split(/[,.]/).map((s) => s.trim()).filter(Boolean);
+
+  const b1 = `[00:00-00:0${Math.min(beat1End, 9)}]`;
+  const b2 = `[00:0${Math.min(beat1End, 9)}-00:${beat2End.toString().padStart(2, "0")}]`;
+  const b3 = `[00:${beat2End.toString().padStart(2, "0")}-00:${duration.toString().padStart(2, "0")}]`;
 
   return [
-    `[Style] ${seed.preferredStyle || "Cinematic"}, ${resolution}, ${seed.preferredMood || "Dramatic"} tone, ${signatureLine}.`,
-    `[Scene] ${seed.location}. ${lighting}.`,
-    `[Character] ${seed.subject}.`,
-    `[Camera] ${camera}; ${cooccurLine}.`,
+    `[Style] ${seed.preferredStyle || "Cinematic"} blockbuster quality, ${resolution} ultra-detailed, ${seed.preferredMood || "Dramatic"} emotional tone. Visual signature: ${signatureLine}. ${grade}. ${lens}.`,
+    ``,
+    `[Scene] ${seed.location}. ${lighting}. Atmospheric depth with multiple layers — foreground, midground, and background all carry detail. Real physical lighting with accurate shadows and realistic falloff.`,
+    ``,
+    `[Character] ${seed.subject}. ${character}. Breathing rhythm synchronized with emotional beats, subtle head tilts and eye movements between dialogue lines, natural shoulder rise and fall.`,
+    ``,
+    `[Camera] Primary movement: ${camera}. Secondary technique: ${cooccurLine}. Stable yet alive camera — reads as a seasoned DP operating, not mechanical.`,
+    ``,
     `[Shots]`,
-    `[00:00-00:0${Math.min(beat1End, 9)}] Establishing: ${seed.action.split(",")[0]}.`,
-    `[00:0${Math.min(beat1End, 9)}-00:${beat2End.toString().padStart(2, "0")}] Build: ${seed.action.split(",").slice(1).join(",").trim() || "tension builds, details amplify"}.`,
-    `[00:${beat2End.toString().padStart(2, "0")}-00:${duration.toString().padStart(2, "0")}] Payoff: the final beat lands in ultra-slow motion, then returns to normal speed.`,
-    `[Effects] Motion blur on fast moves, subtle film grain throughout, particle details (dust motes, sparks, or embers as scene dictates).`,
-    `[Audio] ${sound}.`,
-    `[Technical] ${aspect}, ${duration} seconds, no text/watermarks, character identity maintained throughout.`,
+    `${b1} Establishing: ${a1 || seed.action.slice(0, 80)}. Ground the viewer in the space, reveal the subject from a surprising angle.`,
+    `${b2} Build: ${a2 || "the central action intensifies with layered details — dust, breath, clothing movement, light shifts"}. Mid-scene the tension tightens — either the camera pushes closer or the subject shifts register.`,
+    `${b3} Payoff: ${a3 || "the climactic beat lands"}. Drop into ultra-slow-motion (0.25× speed) for 0.8 seconds on the key impact, then snap back to real time on the settle.`,
+    ``,
+    `[Effects] ${vfx}.`,
+    ``,
+    `[Audio] ${sound}. Layered sound design — foreground action SFX (crisp, detailed), mid-layer ambience (room tone, environmental), background music kept sub-audible until the payoff beat where it swells. No distracting narration.`,
+    ``,
+    `[Technical] ${aspect} aspect ratio, ${duration} seconds total, 24fps for cinematic feel. No text, no watermarks, no subtitles. Character identity consistent throughout all three beats — same face, wardrobe, hair, and lighting logic.`,
   ].join("\n");
 }
 

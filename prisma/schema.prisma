@@ -97,3 +97,16 @@ model ApiUsage {
   @@index([engine])
   @@index([operation])
 }
+
+model GeneratedImage {
+  id         String   @id @default(cuid())
+  sourceId   String
+  blobUrl    String
+  model      String
+  usdCost    Float    @default(0)
+  promptHead String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([createdAt])
+}

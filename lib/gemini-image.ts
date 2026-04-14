@@ -3,6 +3,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { put } from "@vercel/blob";
 import { logUsage } from "./usage-tracker";
+import { prisma } from "./db";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-2.5-flash-image";
@@ -10,14 +11,13 @@ const MODEL = "gemini-2.5-flash-image";
 export async function generateImageFromPrompt(
   prompt: string,
   sourceId?: string,
-): Promise<{ blobUrl: string; usdCost: number }> {
+): Promise<{ blobUrl: string; usdCost: number; model: string }> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: MODEL,
     generationConfig: {
-      // responseMimeType: "image/png", // nano-banana returns images as inline_data parts
       responseModalities: ["IMAGE"] as any,
     } as any,
   });
@@ -32,7 +32,6 @@ export async function generateImageFromPrompt(
     throw e;
   }
 
-  // Extract image bytes from response parts
   const parts = result.response.candidates?.[0]?.content?.parts || [];
   let imageB64: string | null = null;
   let mimeType = "image/png";
@@ -55,11 +54,10 @@ export async function generateImageFromPrompt(
     contentType: mimeType,
   });
 
-  // Log usage - 1 image at nano-banana pricing
   await logUsage({
     model: MODEL,
     operation: "image-gen",
-    inputTokens: Math.round(prompt.length / 4), // rough estimate
+    inputTokens: Math.round(prompt.length / 4),
     outputTokens: 0,
     imagesOut: 1,
     sourceId,
@@ -67,5 +65,18 @@ export async function generateImageFromPrompt(
   });
 
   const usdCost = 0.039;
-  return { blobUrl: blob.url, usdCost };
+
+  if (sourceId) {
+    await prisma.generatedImage.create({
+      data: {
+        sourceId,
+        blobUrl: blob.url,
+        model: MODEL,
+        usdCost,
+        promptHead: prompt.slice(0, 200),
+      },
+    }).catch(() => {});
+  }
+
+  return { blobUrl: blob.url, usdCost, model: MODEL };
 }
