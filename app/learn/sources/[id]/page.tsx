@@ -11,6 +11,7 @@ import GenerateVideoButton from "@/components/generate-video-button";
 import GeneratedImagesGallery from "@/components/generated-images-gallery";
 import GeneratedVideosGallery from "@/components/generated-videos-gallery";
 import PromptLineage from "@/components/prompt-lineage";
+import PromptVersionsLog from "@/components/prompt-versions-log";
 
 export const dynamic = "force-dynamic";
 
