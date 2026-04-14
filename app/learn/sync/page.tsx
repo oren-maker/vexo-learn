@@ -1,31 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { runSeedanceSyncAction } from "./actions";
 
 export default function SyncPage() {
-  const [busy, setBusy] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<any>(null);
   const [err, setErr] = useState("");
+  const busy = pending;
 
-  async function onSeedanceSync() {
-    setBusy(true);
+  function onSeedanceSync() {
     setErr("");
     setResult(null);
-    try {
-      const res = await fetch("/api/internal/sync/seedance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-key": "dev-internal-key-change-me",
-        },
-      });
-      const j = await res.json();
-      if (!res.ok) setErr(j.error || "שגיאה");
-      else setResult(j);
-    } catch (e: any) {
-      setErr(e.message || "שגיאה");
-    }
-    setBusy(false);
+    startTransition(async () => {
+      const r = await runSeedanceSyncAction();
+      if (!r.ok) setErr(r.error);
+      else setResult(r);
+    });
   }
 
   return (
