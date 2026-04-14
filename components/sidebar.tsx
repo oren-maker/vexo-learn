@@ -7,6 +7,7 @@ const groups = [
   {
     title: "הפרומפט המושלם",
     items: [
+      { href: "/learn/my-prompts", label: "הפרומפטים שלי", icon: "📁" },
       { href: "/learn/compose", label: "חולל פרומפט", icon: "✨" },
       { href: "/learn/improve", label: "שפר פרומפט", icon: "🎯" },
     ],
