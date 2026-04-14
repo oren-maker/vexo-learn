@@ -1,15 +1,13 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer, Link, Image } from "@react-pdf/renderer";
 
-// Register Heebo for Hebrew + Latin. Fetched from Google Fonts at runtime by
-// @react-pdf which inlines it into the generated PDF.
+// Register Heebo for Hebrew + Latin. Use jsDelivr mirror of the Google Fonts
+// GitHub repo (stable URLs that don't rev like fonts.gstatic.com does).
+// Variable font covers the entire 100-900 weight range from a single file.
 Font.register({
   family: "Heebo",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1EiSyccg.ttf", fontWeight: 400 },
-    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1Euyyccg.ttf", fontWeight: 500 },
-    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1Ebiuccg.ttf", fontWeight: 700 },
-    { src: "https://fonts.gstatic.com/s/heebo/v28/NGSpv5_NC0k9P_v6ZUCbLRAHxK1ECSuccg.ttf", fontWeight: 800 },
+    { src: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/heebo/Heebo%5Bwght%5D.ttf" },
   ],
 });
 
