@@ -6,11 +6,25 @@ import DeleteSourceButton from "@/components/delete-source-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function SourcesManager() {
-  const [sources, total, withAnalysis, withVideo, byAddedBy, nodeCount] = await Promise.all([
+const PAGE_SIZE = 25;
+
+export default async function SourcesManager({
+  searchParams,
+}: {
+  searchParams: { page?: string; filter?: string };
+}) {
+  const page = Math.max(1, Number(searchParams.page || 1));
+  const filter = searchParams.filter || "all";
+  const skip = (page - 1) * PAGE_SIZE;
+
+  const where = filter === "all" ? {} : { addedBy: { contains: filter, mode: "insensitive" as const } };
+
+  const [sources, total, withAnalysis, withVideo, byAddedBy, nodeCount, filteredTotal] = await Promise.all([
     prisma.learnSource.findMany({
+      where,
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: PAGE_SIZE,
+      skip,
     }),
     prisma.learnSource.count(),
     prisma.learnSource.count({ where: { analysis: { is: {} } } }),
@@ -22,7 +36,10 @@ export default async function SourcesManager() {
       take: 30,
     }),
     prisma.knowledgeNode.count(),
+    prisma.learnSource.count({ where }),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / PAGE_SIZE));
 
   // Categorize sources by origin
   let imported = 0;
@@ -124,13 +141,65 @@ export default async function SourcesManager() {
             )}
           </tbody>
         </table>
-        {total > sources.length && (
-          <div className="px-4 py-3 text-xs text-slate-500 border-t border-slate-800 bg-slate-900/40">
-            מציג {sources.length} מתוך {total} — יש {total - sources.length} נוספים
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} total={filteredTotal} pageSize={PAGE_SIZE} filter={filter} />
       </div>
     </div>
+  );
+}
+
+function Pagination({ page, totalPages, total, pageSize, filter }: { page: number; totalPages: number; total: number; pageSize: number; filter: string }) {
+  if (totalPages <= 1) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  function buildUrl(p: number) {
+    const params = new URLSearchParams();
+    if (p > 1) params.set("page", String(p));
+    if (filter !== "all") params.set("filter", filter);
+    const q = params.toString();
+    return `/learn/sources${q ? `?${q}` : ""}`;
+  }
+
+  // Build page numbers: always show 1, last, current±2
+  const pages = new Set<number>([1, totalPages, page, page - 1, page + 1, page - 2, page + 2]);
+  const visible = [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+
+  return (
+    <div className="px-4 py-3 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between flex-wrap gap-3">
+      <div className="text-xs text-slate-500">
+        מציג {from}–{to} מתוך {total.toLocaleString()}
+      </div>
+      <div className="flex items-center gap-1" dir="ltr">
+        <PageLink href={page > 1 ? buildUrl(page - 1) : undefined} label="‹ הקודם" />
+        {visible.map((p, i) => (
+          <span key={p} className="flex items-center gap-1">
+            {i > 0 && p > visible[i - 1] + 1 && <span className="text-slate-600 px-1">…</span>}
+            {p === page ? (
+              <span className="bg-cyan-500 text-slate-950 font-bold px-3 py-1 rounded text-xs">{p}</span>
+            ) : (
+              <Link
+                href={buildUrl(p)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded text-xs"
+              >
+                {p}
+              </Link>
+            )}
+          </span>
+        ))}
+        <PageLink href={page < totalPages ? buildUrl(page + 1) : undefined} label="הבא ›" />
+      </div>
+    </div>
+  );
+}
+
+function PageLink({ href, label }: { href?: string; label: string }) {
+  if (!href) {
+    return <span className="text-slate-600 px-2 py-1 text-xs cursor-not-allowed">{label}</span>;
+  }
+  return (
+    <Link href={href} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded text-xs">
+      {label}
+    </Link>
   );
 }
 
