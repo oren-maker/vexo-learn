@@ -14,6 +14,7 @@ const groups = [
   {
     title: "מקורות למידה",
     items: [
+      { href: "/learn/insights", label: "תובנות מהמאגר", icon: "📊" },
       { href: "/learn", label: "Feed", icon: "📚" },
       { href: "/learn/sources", label: "ספריית פרומפטים", icon: "🎬" },
       { href: "/learn/knowledge", label: "Knowledge Base", icon: "🧠" },
