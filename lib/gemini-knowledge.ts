@@ -125,18 +125,40 @@ function analysisToNodes(
   return nodes;
 }
 
-// Process one source: call Gemini, create VideoAnalysis + KnowledgeNodes.
-// Skips if analysis already exists.
-export async function extractForSource(sourceId: string): Promise<{ created: boolean; nodeCount: number; error?: string }> {
+// An analysis is considered "thin" if it was produced by pattern extraction
+// and lacks insights / howTo — i.e. it's shallow tagging, not real learning.
+function isThinAnalysis(a: { rawGemini: string; insights: string[]; howTo: string[]; techniques: string[] } | null): boolean {
+  if (!a) return true;
+  if (a.rawGemini?.includes("pattern-extractor")) return true;
+  if (a.insights.length === 0 && a.howTo.length === 0) return true;
+  if (a.techniques.length === 0) return true;
+  return false;
+}
+
+// Process one source: call Gemini, create or REPLACE VideoAnalysis + KnowledgeNodes
+// when the current analysis is missing or thin.
+export async function extractForSource(
+  sourceId: string,
+  opts: { force?: boolean } = {},
+): Promise<{ created: boolean; nodeCount: number; error?: string }> {
   const source = await prisma.learnSource.findUnique({
     where: { id: sourceId },
     include: { analysis: true },
   });
   if (!source) return { created: false, nodeCount: 0, error: "not found" };
-  if (source.analysis) return { created: false, nodeCount: 0, error: "already has analysis" };
+  if (!opts.force && source.analysis && !isThinAnalysis(source.analysis)) {
+    return { created: false, nodeCount: 0, error: "already rich" };
+  }
 
   try {
     const analysis = await extractKnowledgeFromPromptText(source.prompt);
+
+    if (source.analysis) {
+      // Replace the thin analysis
+      await prisma.knowledgeNode.deleteMany({ where: { analysisId: source.analysis.id } });
+      await prisma.videoAnalysis.delete({ where: { id: source.analysis.id } });
+    }
+
     const saved = await prisma.videoAnalysis.create({
       data: {
         sourceId: source.id,
@@ -149,7 +171,7 @@ export async function extractForSource(sourceId: string): Promise<{ created: boo
         difficulty: analysis.difficulty,
         insights: analysis.insights,
         promptAlignment: null,
-        rawGemini: JSON.stringify(analysis),
+        rawGemini: JSON.stringify({ engine: "gemini-flash", ...analysis }),
       },
     });
     const nodes = analysisToNodes(analysis, saved.id);
@@ -162,21 +184,21 @@ export async function extractForSource(sourceId: string): Promise<{ created: boo
   }
 }
 
-// Batch process all sources without analysis. Sequential with small delay to stay under Gemini Flash rate limits.
-export async function extractAllPending(limit = 200): Promise<{
+// Batch process all sources without rich analysis. Sequential, 2s delay.
+// thinOnly=true picks up sources missing analysis OR with pattern-only analysis.
+export async function extractAllPending(limit = 300, thinOnly = true): Promise<{
   processed: number;
   created: number;
   totalNodes: number;
   errors: string[];
 }> {
-  const pending = await prisma.learnSource.findMany({
-    where: {
-      type: "cedance",
-      status: "complete",
-      analysis: { is: null },
-    },
-    take: limit,
+  // Fetch ALL complete sources with current analysis, then filter in JS to catch "thin" cases.
+  const candidates = await prisma.learnSource.findMany({
+    where: { status: "complete" },
+    include: { analysis: true },
+    take: limit * 2,
   });
+  const pending = candidates.filter((s) => !s.analysis || (thinOnly && isThinAnalysis(s.analysis))).slice(0, limit);
 
   let created = 0;
   let totalNodes = 0;
