@@ -86,7 +86,8 @@ export type Operation =
   | "image-gen"
   | "knowledge-extract"
   | "translate"
-  | "reference-search";
+  | "reference-search"
+  | "image-prompt-build";
 
 export function calcCost(model: string, inputTokens: number, outputTokens: number, imagesOut: number, videoSeconds = 0): number {
   const p = (PRICING as any)[model];
