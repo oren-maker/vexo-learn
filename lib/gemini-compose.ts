@@ -57,24 +57,36 @@ async function pickReferences(brief: string, k = 5) {
   return scored.slice(0, k).map((s) => s.c);
 }
 
-const SYSTEM_PROMPT = `You are an expert AI video prompt engineer for Seedance 2.0, Sora, Kling, and Veo.
+const SYSTEM_PROMPT = `You are an expert AI video prompt engineer for Seedance 2.0, Sora, Kling, and Veo. You write English prompts ONLY (native language of the engines).
 
-Your job: compose ONE high-quality video generation prompt based on the user's brief, studying the provided reference prompts for:
-- Structure: [Style] / [Scene] / [Character] / [Shots] / [Camera] / [Effects] blocks, or timecoded beats [00:00-00:05]
-- Cinematic language: lens, lighting, color grade, depth of field, motion, VFX
-- Level of detail and sensory richness (sound, atmosphere, micro-expressions)
-- Technical specs: resolution (720p/1080p/8K), aspect ratio (16:9/9:16), duration (4-15 seconds)
+HARD REQUIREMENTS — every prompt you output MUST include ALL of these sections, in this order. No skipping, no merging. Aim for 400–900 words.
 
-RULES:
-- Match the style and structure of the reference prompts, but do NOT copy their content.
-- Write the prompt in English (Seedance's native language).
-- Include timecoded shot breakdown when appropriate (for 10-15s prompts).
-- End with resolution / aspect / duration line if the references use one.
-- Output ONLY valid JSON, no markdown fencing, in this exact shape:
+1. **Visual Style** — genre + realism level + render style (e.g. "Cinematic photoreal 8K", "Chinese style anime 3D CG IMAX quality", "Gritty post-apocalyptic hyperrealistic")
+2. **Film Stock & Lens** — explicit camera/lens/aperture (e.g. "Shot on 35mm anamorphic, f/2.8, shallow depth of field")
+3. **Color Palette & Grade** — concrete colors + grade (e.g. "Teal-orange desaturated, dusty earthy undertones" / "Dark cyan + amber + emerald, high contrast")
+4. **Lighting & Atmosphere** — light type + direction + volumetric/particles (e.g. "Dramatic volumetric Golden Hour with dust motes and heat haze")
+5. **Character / Subject** — detailed physical description: age, build, wardrobe texture, hair, skin detail, expression, consistency note ("face and clothing remain consistent throughout, no drift/artifacts")
+6. **Audio / Sound Design** — explicit SFX list: foreground sounds, ambient bed, impact moments, any diegetic dialogue with whispered lines in quotes
+7. **Timeline — timecoded beats** — MANDATORY. Break the duration into 3–5 beats, each: \`[0-3s]\`, \`[3-6s]\`, etc. For each beat specify:
+   - Shot Type (ECU / OTS / POV / Macro / Wide / Tracking / Dolly / Crane etc.)
+   - Camera movement (push-in, pull-back, orbit, handheld, whip-pan)
+   - Visual Content (what happens, micro-expressions, physical action)
+   - Any sound cue tied to that beat
+8. **Quality Boosters** (final line) — "Photorealistic 8K, ultra-detailed textures, perfect motion blur, high dynamic range, no artifacts, coherent motion, consistent character identity"
+
+STRUCTURE & STYLE:
+- Use clear section headers (bold or ALL-CAPS) exactly as above.
+- Prefer rich cinematic language: "volumetric light", "shallow depth of field", "anamorphic flare", "slow-motion 120fps", "whip pan", "film grain", "HDR", "bokeh".
+- Reference prompts are for style/structure calibration — do NOT copy their content, only their level of detail and technical language.
+- If the user's brief is short ("a cat on a roof"), YOU fill in all 8 layers with cinematically appropriate choices.
+
+OUTPUT: valid JSON only, no markdown fencing:
 {
-  "prompt": "the full prompt text...",
-  "rationale": "one short paragraph in Hebrew explaining which techniques from the references you applied and why"
-}`;
+  "prompt": "<full prompt, 400-900 words, all 8 sections present>",
+  "rationale": "<Hebrew paragraph explaining which reference techniques you reused and why>"
+}
+
+Self-check before returning: count the sections. If any of the 8 is missing, rewrite before emitting.`;
 
 function buildUserMsg(brief: string, refs: Array<{ title: string | null; prompt: string }>): string {
   const referenceBlock = refs
@@ -90,22 +102,55 @@ function parseComposeJson(raw: string): { prompt: string; rationale: string } {
   return { prompt: String(parsed.prompt).trim(), rationale: String(parsed.rationale || "").trim() };
 }
 
+function missingSections(prompt: string): string[] {
+  const missing: string[] = [];
+  const p = prompt.toLowerCase();
+  if (!/\b(shot on|lens|anamorphic|f\/\d|aperture|\d+mm)\b/.test(p)) missing.push("Film Stock & Lens");
+  if (!/\b(color palette|color grade|grade|teal|desaturated|warm tones|cool tones|hdr)\b/.test(p)) missing.push("Color Palette & Grade");
+  if (!/\b(lighting|volumetric|golden hour|backlit|rim light|key light|ambient|soft light)\b/.test(p)) missing.push("Lighting & Atmosphere");
+  if (!/\b(sound|audio|sfx|ambient|foley|score|whisper|dialogue)\b/.test(p)) missing.push("Audio / Sound Design");
+  if (!/\[\s*\d{1,2}\s*[-–]\s*\d{1,2}\s*s?\s*\]|\b\d{1,2}\s*[-–]\s*\d{1,2}s\b|\b0-\d+\s*seconds?\b/.test(prompt)) missing.push("Timeline (timecoded beats)");
+  if (!/\b(8k|photoreal|ultra-detailed|no artifacts|motion blur|high dynamic range)\b/.test(p)) missing.push("Quality Boosters");
+  return missing;
+}
+
 async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPrompt> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.8 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.8, maxOutputTokens: 4096 },
   });
-  const result = await model.generateContent(buildUserMsg(brief, refs));
-  const u = result.response.usageMetadata;
+
+  let userMsg = buildUserMsg(brief, refs);
+  let parsed: { prompt: string; rationale: string } | null = null;
+  let lastUsage: any = null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await model.generateContent(userMsg);
+    lastUsage = result.response.usageMetadata;
+    const p = parseComposeJson(result.response.text());
+    const wordCount = p.prompt.split(/\s+/).length;
+    const missing = missingSections(p.prompt);
+    if (wordCount >= 350 && missing.length === 0) {
+      parsed = p;
+      break;
+    }
+    if (attempt === 0) {
+      userMsg = `${userMsg}\n\nYOUR PREVIOUS ATTEMPT FAILED VALIDATION.\n- Word count: ${wordCount} (need ≥350)\n- Missing required sections: ${missing.join(", ") || "none"}\nRewrite the prompt so ALL 8 sections are present with explicit markers, and total length 400–900 words. Return JSON.`;
+    } else {
+      parsed = p;
+    }
+  }
+
   await logUsage({
     model: MODEL, operation: "compose",
-    inputTokens: u?.promptTokenCount || 0,
-    outputTokens: u?.candidatesTokenCount || 0,
+    inputTokens: lastUsage?.promptTokenCount || 0,
+    outputTokens: lastUsage?.candidatesTokenCount || 0,
   });
-  const { prompt, rationale } = parseComposeJson(result.response.text());
+
+  const { prompt, rationale } = parsed!;
   return {
     prompt, rationale,
     similar: refs.map((r) => ({ id: r.id, title: r.title, externalId: r.externalId })),
@@ -119,7 +164,7 @@ async function composeWithClaude(brief: string, refs: any[]): Promise<ComposedPr
   const client = new Anthropic({ apiKey: key });
   const res = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: buildUserMsg(brief, refs) }],
   });

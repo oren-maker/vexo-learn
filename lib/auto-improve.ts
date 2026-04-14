@@ -14,25 +14,34 @@ import { updateJob } from "./sync-jobs";
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
 
-const SYSTEM = `You upgrade existing Seedance 2.0 / Sora video prompts based on what the curated corpus has learned.
+const SYSTEM = `You upgrade existing Seedance 2.0 / Sora video prompts so they meet the FULL cinematic prompt standard. English prompts only.
 
-You receive:
-1. The current prompt (may be thin or outdated)
-2. A list of 'derived rules' that describe what makes prompts work well in this corpus
-3. Top co-occurring techniques that strong prompts use together
-4. Style signatures that characterize each visual style
+A complete video prompt MUST contain ALL 8 sections (aim 400–900 words total):
+1. **Visual Style** — genre + render level (e.g. "Cinematic photoreal 8K", "3D CG IMAX")
+2. **Film Stock & Lens** — explicit camera/lens/aperture ("35mm anamorphic, f/2.8")
+3. **Color Palette & Grade** — concrete colors ("teal-orange desaturated, dusty undertones")
+4. **Lighting & Atmosphere** — volumetric, direction, particles ("Golden Hour volumetric with dust motes")
+5. **Character / Subject** — age, build, wardrobe, hair, expression + consistency note
+6. **Audio / Sound Design** — explicit SFX + ambient + any dialogue in quotes
+7. **Timeline with timecoded beats** — MANDATORY: 3–5 beats like [0-3s], each with Shot Type + Camera move + Visual content + Sound cue
+8. **Quality Boosters** final line — "Photorealistic 8K, ultra-detailed, no artifacts, motion blur, HDR, consistent identity"
 
-Your job:
-- Look for concrete opportunities to apply the derived rules. Even strong prompts usually benefit from tightening one specific layer (lighting, lens, timecodes, sound).
-- Only return { keep: true } if the prompt is TRULY exemplary: >200 words AND timecodes AND explicit camera/lens AND lighting AND sound — all four dimensions present.
-- Otherwise produce an upgraded prompt that applies the corpus rules WITHOUT changing the core subject/scene.
-- Be conservative on intent: keep the creative subject, only add/tighten cinematic + technical layers.
-- Return ONLY JSON:
-  { "keep": true }  // if no change needed
-  OR
-  { "keep": false, "upgradedPrompt": "...", "reason": "one short Hebrew sentence explaining what you changed" }
+You receive the current prompt + derived corpus rules + co-occurrence pairs + style signatures.
 
-No markdown, no commentary.`;
+Your job — ALWAYS upgrade unless ALL 8 sections are already present AND prompt ≥ 400 words. Only return { "keep": true } when the prompt is truly exemplary across all 8 dimensions.
+
+Otherwise rewrite it:
+- Preserve the core subject/scene/intent
+- Fill in every missing section with cinematically appropriate choices (invent lens/grade/lighting/sound if the original is vague)
+- Inject 2–3 of the derived rules where they fit naturally
+- Use clear section headers (bold or ALL-CAPS)
+
+Output ONLY valid JSON:
+  { "keep": true }
+OR
+  { "keep": false, "upgradedPrompt": "<full 400-900 word prompt with all 8 sections>", "reason": "<one short Hebrew sentence — which sections you added/tightened>" }
+
+No markdown fencing, no commentary. Self-check before returning: all 8 sections present? length OK?`;
 
 function isQuotaError(e: any): boolean {
   const msg = String(e?.message || e || "").toLowerCase();
@@ -45,7 +54,7 @@ async function improveWithGemini(userMsg: string): Promise<any> {
   const model = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 4096 },
   });
   const result = await model.generateContent(userMsg);
   const u = result.response.usageMetadata;
@@ -65,7 +74,7 @@ async function improveWithClaude(userMsg: string): Promise<any> {
   const client = new Anthropic({ apiKey: key });
   const res = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: SYSTEM,
     messages: [{ role: "user", content: userMsg }],
   });
@@ -176,8 +185,14 @@ export async function runAutoImprovement(
 
       const upgradedPrompt = String(parsed.upgradedPrompt || "").trim();
       const reason = String(parsed.reason || "שדרוג אוטומטי").trim();
-      if (upgradedPrompt.length < 100) {
-        details.push({ sourceId: source.id, kept: true, reason: "response too short" });
+      const upgradedWords = upgradedPrompt.split(/\s+/).length;
+      if (upgradedWords < 300) {
+        details.push({ sourceId: source.id, kept: true, reason: `upgrade too short (${upgradedWords} words)` });
+        continue;
+      }
+      // Must actually be longer than the original — otherwise the "upgrade" is a regression
+      if (upgradedPrompt.length <= source.prompt.length) {
+        details.push({ sourceId: source.id, kept: true, reason: "upgrade not longer than original" });
         continue;
       }
 
