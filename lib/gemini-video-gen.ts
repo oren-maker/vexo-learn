@@ -1,10 +1,12 @@
-// VEO 3 video generation with progress tracking.
-// Each stage updates the GeneratedVideo row so the client can poll.
+// VEO 3 video generation. NEW FLOW:
+// 1. If source has no image → generate one with nano-banana first
+// 2. Animate the image with VEO 3 using the full prompt as motion/style brief
 
 import { GoogleGenAI } from "@google/genai";
 import { put } from "@vercel/blob";
 import { logUsage } from "./usage-tracker";
 import { prisma } from "./db";
+import { generateImageFromPrompt } from "./gemini-image";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -30,8 +32,6 @@ async function updateProgress(videoId: string, data: {
   } catch {}
 }
 
-// Starts generation, returns the videoId immediately. The caller should
-// run this with waitUntil so the function stays alive to complete the work.
 export async function startVideoGeneration(
   prompt: string,
   sourceId: string,
@@ -59,15 +59,27 @@ export async function startVideoGeneration(
   return row.id;
 }
 
-// Does the actual work — long-running. Should run inside waitUntil.
+// Fetch image bytes from URL + convert to base64 for VEO's image param
+async function fetchImageAsBase64(url: string): Promise<{ bytesBase64: string; mimeType: string }> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`fetch image ${res.status}`);
+  const contentType = (res.headers.get("content-type") || "image/png").split(";")[0].trim();
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { bytesBase64: buf.toString("base64"), mimeType: contentType };
+}
+
 export async function runVideoGeneration(videoId: string, prompt: string): Promise<void> {
   if (!API_KEY) {
     await updateProgress(videoId, { status: "failed", error: "GEMINI_API_KEY חסר", progressMessage: "מפתח Gemini חסר", progressPct: 0 });
     return;
   }
 
-  const row = await prisma.generatedVideo.findUnique({ where: { id: videoId } });
+  const row = await prisma.generatedVideo.findUnique({ where: { id: videoId }, include: { } });
   if (!row) return;
+  const source = await prisma.learnSource.findUnique({
+    where: { id: row.sourceId },
+    include: { analysis: true },
+  });
 
   const model = row.model as VeoModel;
   const duration = row.durationSec;
@@ -75,37 +87,88 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
   const usdCost = VEO_PRICING[model] * duration;
 
   try {
+    // STEP 0: Ensure we have a reference image. Generate one first if missing.
+    await updateProgress(videoId, { status: "submitting", progressPct: 3, progressMessage: "בודק תמונת reference…" });
+
+    const existingImages = await prisma.generatedImage.findMany({
+      where: { sourceId: row.sourceId },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
+
+    let refImageUrl = source?.thumbnail || existingImages[0]?.blobUrl || null;
+    let imageGenCost = 0;
+
+    if (!refImageUrl) {
+      await updateProgress(videoId, {
+        status: "submitting",
+        progressPct: 6,
+        progressMessage: "יוצר תמונת reference עם nano-banana… (~$0.04)",
+      });
+      try {
+        const imgResult = await generateImageFromPrompt(prompt, row.sourceId);
+        refImageUrl = imgResult.blobUrl;
+        imageGenCost = imgResult.usdCost;
+        // Update source thumbnail so next time we reuse it
+        await prisma.learnSource.update({
+          where: { id: row.sourceId },
+          data: { thumbnail: refImageUrl },
+        }).catch(() => {});
+      } catch (imgErr: any) {
+        // Proceed without reference image if generation fails
+        await updateProgress(videoId, {
+          status: "submitting",
+          progressPct: 10,
+          progressMessage: "יצירת תמונה נכשלה — ממשיך בלי reference",
+        });
+      }
+    }
+
+    await updateProgress(videoId, {
+      status: "submitting",
+      progressPct: 12,
+      progressMessage: refImageUrl ? "שולח לוידאו עם reference image…" : "שולח ל-VEO 3 (text-only)…",
+    });
+
     const client = new GoogleGenAI({ apiKey: API_KEY });
 
-    await updateProgress(videoId, { status: "submitting", progressPct: 5, progressMessage: "שולח ל-VEO 3…" });
-
-    let operation: any = await client.models.generateVideos({
+    // Build the request. With an image, VEO animates it; without, text-to-video.
+    const generateParams: any = {
       model,
       prompt: prompt.slice(0, 3000),
-      config: { aspectRatio: aspect } as any,
-    });
+      config: { aspectRatio: aspect },
+    };
+
+    if (refImageUrl) {
+      try {
+        const { bytesBase64, mimeType } = await fetchImageAsBase64(refImageUrl);
+        generateParams.image = { imageBytes: bytesBase64, mimeType };
+      } catch {
+        // Image fetch failed — proceed text-only
+      }
+    }
+
+    let operation: any = await client.models.generateVideos(generateParams);
 
     await updateProgress(videoId, {
       status: "rendering",
-      progressPct: 15,
-      progressMessage: "VEO 3 מרנדר את הוידאו… (1-3 דקות)",
+      progressPct: 18,
+      progressMessage: refImageUrl ? "VEO 3 מנפיש את התמונה… (1-3 דק׳)" : "VEO 3 מרנדר… (1-3 דק׳)",
       operationId: operation?.name || operation?.operation?.name || null,
     });
 
-    // Poll. Each loop ~= 6s; at 180s estimate the % approaches 85%
     const startTime = Date.now();
     const deadline = startTime + 5 * 60 * 1000;
     while (!operation.done) {
       if (Date.now() > deadline) throw new Error("VEO polling timeout (5 min)");
       await new Promise((r) => setTimeout(r, 6000));
       operation = await client.operations.getVideosOperation({ operation });
-      // Update progress percent based on elapsed time (simulated - VEO doesn't expose real %)
       const elapsed = (Date.now() - startTime) / 1000;
-      const pct = Math.min(85, 15 + Math.round((elapsed / 120) * 70));
+      const pct = Math.min(85, 18 + Math.round((elapsed / 120) * 67));
       await updateProgress(videoId, {
         status: "rendering",
         progressPct: pct,
-        progressMessage: `VEO 3 מרנדר… ${Math.round(elapsed)}s`,
+        progressMessage: `מרנדר… ${Math.round(elapsed)}s`,
       });
     }
 
@@ -122,16 +185,17 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
     if (!videoRes.ok) throw new Error(`VEO download ${videoRes.status}`);
     const buffer = Buffer.from(await videoRes.arrayBuffer());
 
-    await updateProgress(videoId, { status: "uploading", progressPct: 95, progressMessage: "שומר ל-Vercel Blob…" });
+    await updateProgress(videoId, { status: "uploading", progressPct: 95, progressMessage: "שומר ל-Blob…" });
 
     const filename = `prompt-videos/${row.sourceId}-${Date.now()}.mp4`;
     const blob = await put(filename, buffer, { access: "public", contentType: "video/mp4" });
 
+    const finalCost = usdCost + imageGenCost;
     await prisma.generatedVideo.update({
       where: { id: videoId },
       data: {
         blobUrl: blob.url,
-        usdCost,
+        usdCost: finalCost,
         status: "complete",
         progressPct: 100,
         progressMessage: "הושלם!",
@@ -145,7 +209,7 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
       inputTokens: Math.round(prompt.length / 4),
       videoSeconds: duration,
       sourceId: row.sourceId,
-      meta: { aspect, videoGeneration: true, blobUrl: blob.url, usdCost, videoId },
+      meta: { aspect, videoGeneration: true, blobUrl: blob.url, usdCost: finalCost, videoId, usedReferenceImage: !!refImageUrl, imageGenCost },
     });
   } catch (e: any) {
     const msg = String(e.message || e).slice(0, 500);

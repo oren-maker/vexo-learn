@@ -53,7 +53,7 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
   function goToEditStep() {
     setErr("");
     startAdaptTransition(async () => {
-      const r = await adaptPromptForVEOAction(sourceId);
+      const r = await adaptPromptForVEOAction(sourceId, false);
       if (!r.ok) {
         setErr(r.error);
         return;
@@ -61,6 +61,13 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
       setAdaptedPrompt(r.adapted);
       setOriginalPrompt(r.original);
       setStep("edit-prompt");
+    });
+  }
+
+  function shrinkPrompt() {
+    startAdaptTransition(async () => {
+      const r = await adaptPromptForVEOAction(sourceId, true);
+      if (r.ok) setAdaptedPrompt(r.adapted);
     });
   }
 
@@ -142,27 +149,36 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
 
       {open && !pending && !videoId && step === "edit-prompt" && (
         <div className="absolute top-full mt-2 left-0 bg-slate-900 border border-pink-500/40 rounded-xl p-4 w-[440px] shadow-2xl z-20">
-          <h3 className="text-sm font-bold text-white mb-2">ערוך את הפרומפט ל-VEO</h3>
+          <h3 className="text-sm font-bold text-white mb-2">פרומפט לוידאו</h3>
           <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
-            VEO 3 עובד טוב יותר עם פסקה אחת, לא מבני Seedance מרובי ביטים. הפרומפט המקורי הותאם אוטומטית ע״י Gemini. ערוך לפי הצורך — תיאור דמות מפורט = דמות עקבית יותר.
+            VEO יקבל את הפרומפט המלא. <b className="text-cyan-300">תחילה תיווצר תמונת reference</b> עם nano-banana (+$0.04 אם אין תמונה קיימת), ואז VEO ינפיש אותה לפי הפרומפט. ערוך חופשי.
           </p>
 
           <textarea
             value={adaptedPrompt}
             onChange={(e) => setAdaptedPrompt(e.target.value)}
-            rows={10}
-            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono leading-relaxed focus:border-pink-500 focus:outline-none mb-3"
+            rows={12}
+            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono leading-relaxed focus:border-pink-500 focus:outline-none mb-2"
             dir="ltr"
           />
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-3">
-            <span>{adaptedPrompt.length} תווים · {adaptedPrompt.trim().split(/\s+/).length} מילים</span>
-            <details className="relative">
-              <summary className="cursor-pointer text-cyan-400 hover:underline">הצג מקורי</summary>
-              <div className="absolute bottom-full right-0 mb-2 bg-slate-800 border border-slate-700 rounded p-3 w-80 max-h-64 overflow-y-auto text-[10px] text-slate-300 whitespace-pre-wrap font-mono" dir="ltr">
-                {originalPrompt}
-              </div>
-            </details>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-[11px] text-slate-500">{adaptedPrompt.length} תווים · {adaptedPrompt.trim().split(/\s+/).length} מילים</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setAdaptedPrompt(originalPrompt)}
+                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded"
+              >
+                ↺ מקורי
+              </button>
+              <button
+                onClick={shrinkPrompt}
+                disabled={adaptPending}
+                className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 px-2 py-1 rounded disabled:opacity-50"
+              >
+                {adaptPending ? "..." : "✂ כווץ ע״י AI"}
+              </button>
+            </div>
           </div>
 
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-3 text-center text-xs">

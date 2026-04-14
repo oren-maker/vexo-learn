@@ -18,24 +18,26 @@ export async function snapshotCurrentVersion(
   const existingCount = await prisma.promptVersion.count({ where: { sourceId } });
   const nextVersion = existingCount + 1;
 
+  const analysisData = source.analysis
+    ? {
+        description: source.analysis.description,
+        techniques: source.analysis.techniques,
+        style: source.analysis.style,
+        mood: source.analysis.mood,
+        difficulty: source.analysis.difficulty,
+        howTo: source.analysis.howTo,
+        insights: source.analysis.insights,
+        tags: source.analysis.tags,
+      }
+    : undefined;
+
   await prisma.promptVersion.create({
     data: {
       sourceId,
       version: nextVersion,
       prompt: source.prompt,
       title: source.title,
-      analysisSnapshot: source.analysis
-        ? {
-            description: source.analysis.description,
-            techniques: source.analysis.techniques,
-            style: source.analysis.style,
-            mood: source.analysis.mood,
-            difficulty: source.analysis.difficulty,
-            howTo: source.analysis.howTo,
-            insights: source.analysis.insights,
-            tags: source.analysis.tags,
-          }
-        : null,
+      analysisSnapshot: analysisData as any,
       reason: reason || null,
       triggeredBy,
       snapshotId: snapshotId || null,
@@ -49,12 +51,16 @@ export function computeTextDiff(
   oldText: string,
   newText: string,
 ): { linesAdded: number; linesRemoved: number; wordDiff: number } {
-  const oldLines = new Set(oldText.split("\n").map((l) => l.trim()));
-  const newLines = new Set(newText.split("\n").map((l) => l.trim()));
+  const oldArr = oldText.split("\n").map((l) => l.trim());
+  const newArr = newText.split("\n").map((l) => l.trim());
+  const oldSet: Record<string, boolean> = {};
+  for (const l of oldArr) oldSet[l] = true;
+  const newSet: Record<string, boolean> = {};
+  for (const l of newArr) newSet[l] = true;
   let linesAdded = 0;
   let linesRemoved = 0;
-  for (const l of newLines) if (!oldLines.has(l)) linesAdded++;
-  for (const l of oldLines) if (!newLines.has(l)) linesRemoved++;
+  for (const l of newArr) if (!oldSet[l]) linesAdded++;
+  for (const l of oldArr) if (!newSet[l]) linesRemoved++;
   const oldWords = oldText.trim().split(/\s+/).length;
   const newWords = newText.trim().split(/\s+/).length;
   return { linesAdded, linesRemoved, wordDiff: newWords - oldWords };

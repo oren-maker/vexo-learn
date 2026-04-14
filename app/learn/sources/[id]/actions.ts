@@ -10,9 +10,12 @@ import { adaptPromptForVEO } from "@/lib/adapt-for-veo";
 import { revalidatePath } from "next/cache";
 import { waitUntil } from "@vercel/functions";
 
-export async function adaptPromptForVEOAction(sourceId: string) {
+export async function adaptPromptForVEOAction(sourceId: string, shrink = false) {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) return { ok: false as const, error: "source not found" };
+  if (!shrink) {
+    return { ok: true as const, adapted: source.prompt, original: source.prompt };
+  }
   try {
     const adapted = await adaptPromptForVEO(source.prompt, sourceId);
     return { ok: true as const, adapted, original: source.prompt };
