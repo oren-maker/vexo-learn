@@ -3,8 +3,8 @@ import { prisma } from "./db";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
-// Use gemini-1.5-flash — free tier, plenty fast for prompt composition.
-const MODEL = "gemini-1.5-flash";
+// Gemini 2.0 Flash — free tier, fast, JSON mode support.
+const MODEL = "gemini-flash-latest";
 
 export type ComposedPrompt = {
   prompt: string;

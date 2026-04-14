@@ -6,9 +6,11 @@ import {
   runGithubSyncAction,
   runJsonImportAction,
   runCsvImportAction,
+  runMultiSyncAction,
+  runKnowledgeExtractionAction,
 } from "./actions";
 
-type Tab = "seedance" | "github" | "json" | "csv";
+type Tab = "seedance" | "multi" | "github" | "json" | "csv" | "knowledge";
 
 export default function SyncPage() {
   const [tab, setTab] = useState<Tab>("seedance");
@@ -59,11 +61,28 @@ export default function SyncPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "seedance", label: "Seedance 2.0", icon: "🎬" },
+    { key: "seedance", label: "Seedance", icon: "🎬" },
+    { key: "multi", label: "Sora + עוד", icon: "🌐" },
+    { key: "knowledge", label: "חילוץ Knowledge", icon: "🧠" },
     { key: "github", label: "GitHub Repo", icon: "🐙" },
     { key: "json", label: "JSON", icon: "{}" },
     { key: "csv", label: "CSV", icon: "📊" },
   ];
+
+  function syncMulti() {
+    setErr(""); setResult(null);
+    startTransition(async () => {
+      const r = await runMultiSyncAction();
+      if (!r.ok) setErr(r.error); else setResult(r);
+    });
+  }
+  function extractKnowledge() {
+    setErr(""); setResult(null);
+    startTransition(async () => {
+      const r = await runKnowledgeExtractionAction(200);
+      if (!r.ok) setErr(r.error); else setResult(r);
+    });
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -100,6 +119,42 @@ export default function SyncPage() {
           </button>
           <div className="text-[11px] text-slate-500 mt-3">
             רץ גם אוטומטית כל יום ב-03:00 UTC דרך Vercel Cron.
+          </div>
+        </Panel>
+      )}
+
+      {tab === "multi" && (
+        <Panel
+          title="מאגרי פרומפטים נוספים"
+          subtitle="4 ריפוזיטוריז פתוחים של Sora / AI Video prompts: hr98w/awesome-sora-prompts (טכניקות), SoraEase (דוגמאות רשמיות של OpenAI), xjpp22 (סגנונות במאים), geekjourneyx/awesome-ai-video-prompts. ~100 פרומפטים נוספים."
+        >
+          <button
+            onClick={syncMulti}
+            disabled={pending}
+            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-medium px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+          >
+            {pending ? "מסנכרן..." : "🚀 סנכרן את כל המאגרים"}
+          </button>
+          <div className="text-[11px] text-slate-500 mt-3">
+            בטוח להפעלה חוזרת — upsert לפי externalId. הפרומפטים משתלבים עם הדטאסט הקיים של Seedance.
+          </div>
+        </Panel>
+      )}
+
+      {tab === "knowledge" && (
+        <Panel
+          title="חילוץ Knowledge Nodes מ-Gemini"
+          subtitle="לכל פרומפט שאין לו עדיין ניתוח — שולח ל-Gemini Flash ומחלץ: טכניקות, סגנון, mood, תגיות, הוראות שחזור, תובנות. תוצאה: KnowledgeNodes מסווגים זמינים ל-AI Director דרך RAG."
+        >
+          <button
+            onClick={extractKnowledge}
+            disabled={pending}
+            className="bg-purple-500 hover:bg-purple-400 text-white font-medium px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+          >
+            {pending ? "מעבד (זה יכול לקחת 5-15 דקות)..." : "🧠 חלץ knowledge מכל הפרומפטים"}
+          </button>
+          <div className="text-[11px] text-slate-500 mt-3">
+            רץ על Gemini Flash (חינם). מוגבל ל-15 בקשות לדקה — לכן יש השהיה של 2 שניות בין קריאות.
           </div>
         </Panel>
       )}

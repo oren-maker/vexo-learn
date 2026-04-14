@@ -2,7 +2,32 @@
 
 import { syncSeedanceRepo } from "@/lib/seedance-parser";
 import { syncCeDanceRepo } from "@/lib/github-cedance";
+import { syncAllRegistry } from "@/lib/generic-md-parser";
+import { extractAllPending } from "@/lib/gemini-knowledge";
 import { prisma } from "@/lib/db";
+
+// Sync all extra curated repos (hr98w/awesome-sora-prompts, SoraEase, etc.)
+export async function runMultiSyncAction() {
+  try {
+    const results = await syncAllRegistry();
+    const totalFetched = results.reduce((s, r) => s + r.fetched, 0);
+    const totalUpserted = results.reduce((s, r) => s + r.upserted, 0);
+    const errors = results.flatMap((r) => r.errors);
+    return { ok: true as const, fetched: totalFetched, upserted: totalUpserted, perRepo: results, errors };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e) };
+  }
+}
+
+// Extract knowledge from all sources that don't have analysis yet.
+export async function runKnowledgeExtractionAction(limit = 200) {
+  try {
+    const r = await extractAllPending(limit);
+    return { ok: true as const, ...r };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e) };
+  }
+}
 
 // --- Seedance one-click ---
 export async function runSeedanceSyncAction() {
