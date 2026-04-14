@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchPexels } from "@/lib/pexels";
+import { searchYouTube } from "@/lib/youtube";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(`search:${getClientKey(req)}`, 30, 3600_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "rate limit exceeded (30/hour)" }, { status: 429 });
+  }
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const source = searchParams.get("source") || "pexels";
@@ -13,7 +20,11 @@ export async function GET(req: NextRequest) {
       const results = await searchPexels(q, 3);
       return NextResponse.json({ results });
     }
-    return NextResponse.json({ error: "מקור לא נתמך" }, { status: 400 });
+    if (source === "youtube") {
+      const results = await searchYouTube(q, 3);
+      return NextResponse.json({ results });
+    }
+    return NextResponse.json({ error: "מקור לא נתמך (pexels / youtube)" }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

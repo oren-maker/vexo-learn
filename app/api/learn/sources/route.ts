@@ -3,6 +3,8 @@ import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { validateUrl } from "@/lib/url-validator";
 import { runPipeline } from "@/lib/pipeline";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
+import { requireAdmin } from "@/lib/auth";
 
 export const maxDuration = 300;
 
@@ -32,6 +34,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authFail = requireAdmin(req);
+  if (authFail) return authFail;
+
+  const rl = rateLimit(`sources:${getClientKey(req)}`, 10, 3600_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "rate limit exceeded (10/hour)", resetMs: rl.resetMs },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json();
   const { url, blobUrl, title, thumbnail, duration, prompt, sourceType, addedBy } = body;
 

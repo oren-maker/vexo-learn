@@ -3,10 +3,16 @@ import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { runPipeline } from "@/lib/pipeline";
 import { validateUrl } from "@/lib/url-validator";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
+  const rl = rateLimit(`analyze:${getClientKey(req)}`, 5, 3600_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "rate limit exceeded (5/hour)" }, { status: 429 });
+  }
+
   const { downloadUrl, title, thumbnail, duration, prompt, addedBy } = await req.json();
   if (!downloadUrl || !prompt) return NextResponse.json({ error: "downloadUrl + prompt נדרשים" }, { status: 400 });
 
