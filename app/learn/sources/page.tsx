@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import StatusBadge from "@/components/status-badge";
 import RefreshButton from "@/components/refresh-button";
 import DeleteSourceButton from "@/components/delete-source-button";
+import StarRating from "@/components/star-rating";
 
 export const dynamic = "force-dynamic";
 
@@ -11,18 +12,25 @@ const PAGE_SIZE = 25;
 export default async function SourcesManager({
   searchParams,
 }: {
-  searchParams: { page?: string; filter?: string };
+  searchParams: { page?: string; filter?: string; minRating?: string; sort?: string };
 }) {
   const page = Math.max(1, Number(searchParams.page || 1));
   const filter = searchParams.filter || "all";
+  const minRating = Number(searchParams.minRating || 0);
+  const sort = searchParams.sort || "createdAt";
   const skip = (page - 1) * PAGE_SIZE;
 
-  const where = filter === "all" ? {} : { addedBy: { contains: filter, mode: "insensitive" as const } };
+  const where: any = filter === "all" ? {} : { addedBy: { contains: filter, mode: "insensitive" as const } };
+  if (minRating >= 1 && minRating <= 5) where.userRating = { gte: minRating };
+
+  const orderBy: any = sort === "rating"
+    ? [{ userRating: "desc" }, { createdAt: "desc" }]
+    : { createdAt: "desc" };
 
   const [sources, total, withAnalysis, withVideo, byAddedBy, nodeCount, filteredTotal] = await Promise.all([
     prisma.learnSource.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       take: PAGE_SIZE,
       skip,
     }),
@@ -98,12 +106,48 @@ export default async function SourcesManager({
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+        <span className="text-slate-500">סנן לפי דירוג:</span>
+        {[0, 1, 2, 3, 4, 5].map((n) => {
+          const params = new URLSearchParams();
+          if (n > 0) params.set("minRating", String(n));
+          if (sort === "rating") params.set("sort", "rating");
+          const href = `/learn/sources${params.toString() ? `?${params}` : ""}`;
+          const active = minRating === n;
+          return (
+            <Link
+              key={n}
+              href={href}
+              className={`px-3 py-1 rounded-full border ${
+                active ? "bg-amber-500/20 border-amber-500/50 text-amber-300" : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {n === 0 ? "הכל" : `${"★".repeat(n)}+`}
+            </Link>
+          );
+        })}
+        <span className="text-slate-500 mr-4">מיון:</span>
+        <Link
+          href={`/learn/sources${minRating ? `?minRating=${minRating}` : ""}`}
+          className={`px-3 py-1 rounded-full border ${sort !== "rating" ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
+        >
+          חדשים
+        </Link>
+        <Link
+          href={`/learn/sources?sort=rating${minRating ? `&minRating=${minRating}` : ""}`}
+          className={`px-3 py-1 rounded-full border ${sort === "rating" ? "bg-amber-500/20 border-amber-500/50 text-amber-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
+        >
+          דירוג גבוה
+        </Link>
+      </div>
+
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800/60 text-right text-xs text-slate-400 uppercase">
               <th className="px-4 py-3">סטטוס</th>
               <th className="px-4 py-3">כותרת / פרומפט</th>
+              <th className="px-4 py-3">דירוג</th>
               <th className="px-4 py-3">סוג</th>
               <th className="px-4 py-3">נוצר</th>
               <th className="px-4 py-3 text-left">פעולות</th>
@@ -118,6 +162,7 @@ export default async function SourcesManager({
                   <div className="text-xs text-slate-400 line-clamp-1">{s.prompt}</div>
                   {s.error && <div className="text-xs text-red-400 mt-1">⚠ {s.error}</div>}
                 </td>
+                <td className="px-4 py-3"><StarRating sourceId={s.id} initialRating={s.userRating} size="sm" /></td>
                 <td className="px-4 py-3 text-xs text-slate-400">{s.type}</td>
                 <td className="px-4 py-3 text-xs text-slate-400">
                   {new Date(s.createdAt).toLocaleDateString("he-IL")}
@@ -134,7 +179,7 @@ export default async function SourcesManager({
             ))}
             {sources.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
                   אין מקורות. <Link href="/learn/sources/new" className="text-cyan-400 underline">הוסף ראשון</Link>.
                 </td>
               </tr>

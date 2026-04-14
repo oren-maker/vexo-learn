@@ -12,6 +12,7 @@ import GeneratedImagesGallery from "@/components/generated-images-gallery";
 import GeneratedVideosGallery from "@/components/generated-videos-gallery";
 import PromptLineage from "@/components/prompt-lineage";
 import PromptVersionsLog from "@/components/prompt-versions-log";
+import StarRating from "@/components/star-rating";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +60,10 @@ export default async function SourceDetail({ params }: { params: { id: string } 
           )}
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <StatusBadge status={source.status} />
             <span className="text-[11px] text-slate-500">{source.type}</span>
+            <StarRating sourceId={source.id} initialRating={source.userRating} size="md" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">
             {source.title || "ממתין ל-metadata..."}

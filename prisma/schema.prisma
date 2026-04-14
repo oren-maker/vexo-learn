@@ -27,6 +27,7 @@ model LearnSource {
   parentSource   LearnSource?  @relation("Lineage", fields: [parentSourceId], references: [id], onDelete: SetNull)
   children       LearnSource[] @relation("Lineage")
   lineageNotes   String?       // what was borrowed/adapted from parent (short paragraph)
+  userRating Int?              // 1-5 stars, manual quality rating
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   analysis   VideoAnalysis?
@@ -34,6 +35,7 @@ model LearnSource {
 
   @@index([status])
   @@index([type])
+  @@index([userRating])
 }
 
 model VideoAnalysis {
