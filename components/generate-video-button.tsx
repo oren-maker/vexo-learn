@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { generateVideoAction } from "@/app/learn/sources/[id]/actions";
+import { generateVideoAction, adaptPromptForVEOAction } from "@/app/learn/sources/[id]/actions";
 
 const FAST_COST_PER_SEC = 0.40;
 const PRO_COST_PER_SEC = 0.75;
@@ -23,9 +23,13 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
   const [duration, setDuration] = useState(8);
   const [aspect, setAspect] = useState<"16:9" | "9:16">("16:9");
   const [pending, startTransition] = useTransition();
+  const [adaptPending, startAdaptTransition] = useTransition();
   const [err, setErr] = useState("");
   const [videoId, setVideoId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
+  const [adaptedPrompt, setAdaptedPrompt] = useState<string>("");
+  const [originalPrompt, setOriginalPrompt] = useState<string>("");
+  const [step, setStep] = useState<"config" | "edit-prompt">("config");
 
   const perSec = fast ? FAST_COST_PER_SEC : PRO_COST_PER_SEC;
   const estimate = perSec * duration;
@@ -46,11 +50,28 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
     return () => clearTimeout(timer);
   }, [videoId, status]);
 
+  function goToEditStep() {
+    setErr("");
+    startAdaptTransition(async () => {
+      const r = await adaptPromptForVEOAction(sourceId);
+      if (!r.ok) {
+        setErr(r.error);
+        return;
+      }
+      setAdaptedPrompt(r.adapted);
+      setOriginalPrompt(r.original);
+      setStep("edit-prompt");
+    });
+  }
+
   function run() {
     if (!confirm(`יצירת וידאו VEO 3 תעלה כ-$${estimate.toFixed(2)}. להמשיך?`)) return;
-    setErr(""); setStatus(null); setOpen(false);
+    setErr(""); setStatus(null); setOpen(false); setStep("config");
     startTransition(async () => {
-      const r = await generateVideoAction(sourceId, { fast, durationSec: duration, aspectRatio: aspect });
+      const r = await generateVideoAction(sourceId, {
+        fast, durationSec: duration, aspectRatio: aspect,
+        customPrompt: adaptedPrompt,
+      });
       if (!r.ok) setErr(r.error);
       else {
         setVideoId(r.videoId);
@@ -65,7 +86,7 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
     <div className="relative">
       {!videoId && !pending && (
         <button
-          onClick={() => setOpen(!open)}
+          onClick={() => { setOpen(!open); setStep("config"); }}
           className="bg-gradient-to-l from-red-500 to-pink-500 hover:opacity-90 text-white font-bold px-4 py-2 rounded-lg text-sm whitespace-nowrap"
         >
           🎬 צור וידאו (VEO 3)
@@ -78,7 +99,7 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
         </button>
       )}
 
-      {open && !pending && !videoId && (
+      {open && !pending && !videoId && step === "config" && (
         <div className="absolute top-full mt-2 left-0 bg-slate-900 border border-slate-700 rounded-xl p-4 w-80 shadow-2xl z-20">
           <h3 className="text-sm font-bold text-white mb-3">הגדרות VEO 3</h3>
           <div className="mb-3">
@@ -107,10 +128,65 @@ export default function GenerateVideoButton({ sourceId }: { sourceId: string }) 
             <div className="text-[10px] text-amber-400 uppercase">עלות משוערת</div>
             <div className="text-2xl font-bold text-amber-300">${estimate.toFixed(2)}</div>
           </div>
-          <button onClick={run} className="w-full bg-gradient-to-l from-red-500 to-pink-500 hover:opacity-90 text-white font-bold py-2 rounded-lg text-sm">
-            🎬 הפעל VEO 3
+          <button
+            onClick={goToEditStep}
+            disabled={adaptPending}
+            className="w-full bg-gradient-to-l from-red-500 to-pink-500 hover:opacity-90 text-white font-bold py-2 rounded-lg text-sm disabled:opacity-50"
+          >
+            {adaptPending ? "🧠 מתאים פרומפט…" : "המשך → ערוך פרומפט ל-VEO"}
           </button>
           <button onClick={() => setOpen(false)} className="w-full mt-2 text-slate-400 hover:text-slate-200 text-xs">ביטול</button>
+          {err && <div className="mt-2 text-[11px] text-red-400">{err}</div>}
+        </div>
+      )}
+
+      {open && !pending && !videoId && step === "edit-prompt" && (
+        <div className="absolute top-full mt-2 left-0 bg-slate-900 border border-pink-500/40 rounded-xl p-4 w-[440px] shadow-2xl z-20">
+          <h3 className="text-sm font-bold text-white mb-2">ערוך את הפרומפט ל-VEO</h3>
+          <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
+            VEO 3 עובד טוב יותר עם פסקה אחת, לא מבני Seedance מרובי ביטים. הפרומפט המקורי הותאם אוטומטית ע״י Gemini. ערוך לפי הצורך — תיאור דמות מפורט = דמות עקבית יותר.
+          </p>
+
+          <textarea
+            value={adaptedPrompt}
+            onChange={(e) => setAdaptedPrompt(e.target.value)}
+            rows={10}
+            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono leading-relaxed focus:border-pink-500 focus:outline-none mb-3"
+            dir="ltr"
+          />
+
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-3">
+            <span>{adaptedPrompt.length} תווים · {adaptedPrompt.trim().split(/\s+/).length} מילים</span>
+            <details className="relative">
+              <summary className="cursor-pointer text-cyan-400 hover:underline">הצג מקורי</summary>
+              <div className="absolute bottom-full right-0 mb-2 bg-slate-800 border border-slate-700 rounded p-3 w-80 max-h-64 overflow-y-auto text-[10px] text-slate-300 whitespace-pre-wrap font-mono" dir="ltr">
+                {originalPrompt}
+              </div>
+            </details>
+          </div>
+
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-3 text-center text-xs">
+            <span className="text-amber-400">עלות: </span>
+            <span className="text-amber-300 font-bold">${estimate.toFixed(2)}</span>
+            <span className="text-slate-500 mx-2">·</span>
+            <span className="text-slate-400">{fast ? "⚡ Fast" : "💎 Pro"} · {duration}s · {aspect}</span>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep("config")}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded"
+            >
+              ← חזרה
+            </button>
+            <button
+              onClick={run}
+              disabled={adaptedPrompt.trim().length < 20}
+              className="flex-1 bg-gradient-to-l from-red-500 to-pink-500 hover:opacity-90 text-white font-bold py-2 rounded text-sm disabled:opacity-50"
+            >
+              🚀 שלח ל-VEO 3
+            </button>
+          </div>
         </div>
       )}
 
@@ -151,7 +227,6 @@ function ProgressPanel({ status }: { status: Status }) {
         <div className="text-sm font-bold text-white">🎬 יוצר וידאו…</div>
         <div className="text-[10px] font-mono text-slate-500">{status.elapsedSec}s</div>
       </div>
-
       <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
         <div
           className="h-full bg-gradient-to-l from-pink-500 to-red-500 transition-all duration-500"
@@ -159,7 +234,6 @@ function ProgressPanel({ status }: { status: Status }) {
         />
       </div>
       <div className="text-xs text-slate-400 mb-4 text-center">{status.progressPct}% · {status.progressMessage}</div>
-
       <ol className="space-y-2">
         {steps.map((s, i) => {
           const done = i < currentIdx;
@@ -180,7 +254,6 @@ function ProgressPanel({ status }: { status: Status }) {
           );
         })}
       </ol>
-
       <div className="text-[10px] text-slate-500 mt-3 text-center italic">
         הדף לא נסגר — הפעולה רצה ב-Vercel ברקע
       </div>
