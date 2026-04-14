@@ -9,6 +9,7 @@ import { prisma } from "./db";
 import { logUsage } from "./usage-tracker";
 import { snapshotCurrentVersion, computeTextDiff } from "./prompt-versioning";
 import { computeCorpusInsights } from "./corpus-insights";
+import { updateJob } from "./sync-jobs";
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
@@ -79,7 +80,11 @@ async function improveWithClaude(userMsg: string): Promise<any> {
   return JSON.parse(block.text.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim());
 }
 
-export async function runAutoImprovement(snapshotId: string, maxCandidates = 5): Promise<{
+export async function runAutoImprovement(
+  snapshotId: string,
+  maxCandidates = 5,
+  jobId?: string,
+): Promise<{
   examined: number;
   improved: number;
   totalCostUsd: number;
@@ -89,9 +94,15 @@ export async function runAutoImprovement(snapshotId: string, maxCandidates = 5):
     data: { snapshotId, status: "running" },
   });
 
+  const tick = async (step: string, msg?: string, completed?: number, total?: number) => {
+    if (jobId) await updateJob(jobId, { currentStep: step, currentMessage: msg, ...(completed != null ? { completedItems: completed } : {}), ...(total != null ? { totalItems: total } : {}) });
+  };
+
   try {
+    await tick("טוען תובנות", "חישוב derived rules + co-occurrence");
     const insights = await computeCorpusInsights();
 
+    await tick("בוחר פרומפטים רזים", "מסנן לפי techniques<4 ואורך<800");
     // Target "stale" prompts: thin analysis + few techniques
     const candidates = await prisma.learnSource.findMany({
       where: {
@@ -120,7 +131,13 @@ export async function runAutoImprovement(snapshotId: string, maxCandidates = 5):
     let totalCost = 0;
     const startCost = (await prisma.apiUsage.aggregate({ _sum: { usdCost: true } }))._sum.usdCost || 0;
 
+    await tick("Gemini בודק ומשפר", `נמצאו ${stale.length} מועמדים`, 0, stale.length);
+
+    let idx = 0;
     for (const source of stale) {
+      idx++;
+      const title = (source.title || source.prompt.slice(0, 40)).slice(0, 60);
+      await tick("Gemini בודק ומשפר", `${idx}/${stale.length}: "${title}"`, idx - 1, stale.length);
       const userMsg = `=== CURRENT PROMPT ===\n${source.prompt}\n\n=== DERIVED RULES ===\n${rulesBlock}\n\n=== CO-OCCURRENCE PAIRS ===\n${cooccurBlock}\n\n=== STYLE SIGNATURES ===\n${styleBlock}\n\nReturn JSON now.`;
 
       let parsed: any;
@@ -140,6 +157,7 @@ export async function runAutoImprovement(snapshotId: string, maxCandidates = 5):
       }
 
       if (parsed.keep) {
+        await tick("Gemini בודק ומשפר", `${idx}/${stale.length}: נשמר ללא שינוי — "${title}"`, idx, stale.length);
         details.push({ sourceId: source.id, kept: true });
         continue;
       }
@@ -151,6 +169,7 @@ export async function runAutoImprovement(snapshotId: string, maxCandidates = 5):
         continue;
       }
 
+      await tick("שומר גרסה קודמת", `${idx}/${stale.length}: snapshot של "${title}"`, idx - 1, stale.length);
       // Snapshot current before changing
       await snapshotCurrentVersion(source.id, "auto-improve", reason, snapshotId);
       const diff = computeTextDiff(source.prompt, upgradedPrompt);
@@ -173,6 +192,7 @@ export async function runAutoImprovement(snapshotId: string, maxCandidates = 5):
       }
 
       improved++;
+      await tick("מחיל שדרוג", `${idx}/${stale.length}: ✅ שודרג — ${reason.slice(0, 80)}`, idx, stale.length);
       details.push({ sourceId: source.id, kept: false, reason });
     }
 

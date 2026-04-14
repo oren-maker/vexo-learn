@@ -1,33 +1,34 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import SyncProgress from "@/components/sync-progress";
 
 export default function TriggerImprovementButton({ snapshotId }: { snapshotId: string }) {
-  const [pending, startTransition] = useTransition();
+  const [jobId, setJobId] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<any>(null);
+  const [starting, setStarting] = useState(false);
 
-  function run() {
+  async function run() {
     if (!confirm("להפעיל auto-improvement? זה יקרא ל-Gemini על עד 5 פרומפטים (~$0.005) ויעדכן אותם עם שמירת גרסה קודמת.")) return;
-    setErr(""); setDone(null);
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/learn/auto-improve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ snapshotId, max: 5 }),
-        });
-        const j = await res.json();
-        if (!res.ok || !j.ok) setErr(j.error || `HTTP ${res.status}`);
-        else {
-          setDone(j);
-          setTimeout(() => window.location.reload(), 2000);
-        }
-      } catch (e: any) {
-        setErr(e.message || "שגיאה");
-      }
-    });
+    setErr(""); setDone(null); setStarting(true);
+    try {
+      const res = await fetch("/api/learn/auto-improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId, max: 5 }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) { setErr(j.error || `HTTP ${res.status}`); setStarting(false); return; }
+      setJobId(j.jobId);
+    } catch (e: any) {
+      setErr(e.message || "שגיאה");
+    } finally {
+      setStarting(false);
+    }
   }
+
+  const pending = starting || !!jobId;
 
   return (
     <div className="bg-gradient-to-br from-purple-500/10 to-cyan-500/5 border border-purple-500/30 rounded-xl p-5 mb-6">
@@ -46,6 +47,26 @@ export default function TriggerImprovementButton({ snapshotId }: { snapshotId: s
           {pending ? "🔄 מריץ…" : "🚀 הרץ עכשיו"}
         </button>
       </div>
+
+      {jobId && (
+        <SyncProgress
+          jobId={jobId}
+          steps={[
+            "טוען תובנות",
+            "בוחר פרומפטים רזים",
+            "Gemini בודק ומשפר",
+            "שומר גרסה קודמת",
+            "מחיל שדרוג",
+          ]}
+          onComplete={(r) => {
+            setJobId(null);
+            setDone(r);
+            setTimeout(() => window.location.reload(), 2500);
+          }}
+          onFailed={(e) => { setJobId(null); setErr(e); }}
+        />
+      )}
+
       {done && (
         <div className="mt-3 text-xs text-emerald-300">
           ✓ הושלם · נבדקו {done.examined} · שודרגו {done.improved} · עלות ${done.totalCostUsd?.toFixed(4) || "0"}

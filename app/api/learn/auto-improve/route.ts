@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { runAutoImprovement } from "@/lib/auto-improve";
+import { createJob, finishJob, failJob } from "@/lib/sync-jobs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -8,8 +10,21 @@ export async function POST(req: NextRequest) {
   try {
     const { snapshotId, max } = await req.json();
     if (!snapshotId) return NextResponse.json({ ok: false, error: "snapshotId נדרש" }, { status: 400 });
-    const r = await runAutoImprovement(snapshotId, max || 5);
-    return NextResponse.json({ ok: true, ...r });
+
+    const jobId = await createJob("auto-improve", max || 5, "מאתחל…");
+
+    waitUntil(
+      (async () => {
+        try {
+          const r = await runAutoImprovement(snapshotId, max || 5, jobId);
+          await finishJob(jobId, r);
+        } catch (e: any) {
+          await failJob(jobId, String(e.message || e));
+        }
+      })(),
+    );
+
+    return NextResponse.json({ ok: true, jobId });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 500 });
   }
