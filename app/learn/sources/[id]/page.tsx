@@ -31,9 +31,17 @@ export default async function SourceDetail({ params }: { params: { id: string } 
       <PromptVersionsLog sourceId={source.id} />
 
       <div className="mb-5 flex items-center justify-between">
-        <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
-          ← חזרה למקורות
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
+            ← חזרה למקורות
+          </Link>
+          <Link
+            href={`/learn/sources/${source.id}/logs`}
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded-lg"
+          >
+            📂 לוגים של הפרומפט
+          </Link>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <GenerateImageButton sourceId={source.id} />
           <GenerateVideoButton sourceId={source.id} />
