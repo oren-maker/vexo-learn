@@ -115,6 +115,53 @@ model GeneratedImage {
   @@index([createdAt])
 }
 
+model InsightsSnapshot {
+  id            String   @id @default(cuid())
+  takenAt       DateTime @default(now())
+  sourcesCount  Int
+  analysesCount Int
+  nodesCount    Int
+  avgTechniques Float
+  avgWords      Int
+  timecodePct   Int       // percent with timecodes
+  data          Json      // full CorpusInsights object
+  delta         Json?     // diff vs previous snapshot (null for first)
+  summary       String?   @db.Text // human-readable Hebrew change summary
+
+  @@index([takenAt])
+}
+
+model PromptVersion {
+  id               String   @id @default(cuid())
+  sourceId         String
+  version          Int
+  prompt           String   @db.Text
+  title            String?
+  analysisSnapshot Json?
+  reason           String?  @db.Text
+  triggeredBy      String?
+  snapshotId       String?
+  diff             Json?
+  createdAt        DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([createdAt])
+}
+
+model ImprovementRun {
+  id              String   @id @default(cuid())
+  snapshotId      String
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  sourcesExamined Int      @default(0)
+  sourcesImproved Int      @default(0)
+  totalCostUsd    Float    @default(0)
+  summary         String?  @db.Text
+  status          String   @default("running")
+
+  @@index([startedAt])
+}
+
 model GeneratedVideo {
   id              String   @id @default(cuid())
   sourceId        String

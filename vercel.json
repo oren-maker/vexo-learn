@@ -8,6 +8,7 @@
     "app/learn/sources/[id]/page.tsx": { "maxDuration": 300 }
   },
   "crons": [
-    { "path": "/api/cron/sync-seedance", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/sync-seedance", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/insights-snapshot", "schedule": "0 * * * *" }
   ]
 }
