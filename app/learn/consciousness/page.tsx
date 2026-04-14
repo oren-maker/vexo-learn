@@ -28,10 +28,28 @@ export default async function ConsciousnessPage() {
     }),
   ]);
 
-  const sourceIds = topImprovedSources.map((s) => s.sourceId);
-  const sourceMap = sourceIds.length
+  // Gather per-run details: PromptVersions created with triggeredBy=auto-improve, grouped by snapshotId
+  const autoImproveVersions = await prisma.promptVersion.findMany({
+    where: { triggeredBy: "auto-improve" },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { id: true, sourceId: true, snapshotId: true, reason: true, version: true, createdAt: true },
+  });
+  const versionsBySnapshot: Record<string, typeof autoImproveVersions> = {};
+  for (const v of autoImproveVersions) {
+    if (!v.snapshotId) continue;
+    (versionsBySnapshot[v.snapshotId] ||= []).push(v);
+  }
+
+  const allSourceIds = Array.from(
+    new Set([
+      ...topImprovedSources.map((s) => s.sourceId),
+      ...autoImproveVersions.map((v) => v.sourceId),
+    ]),
+  );
+  const sourceMap = allSourceIds.length
     ? await prisma.learnSource.findMany({
-        where: { id: { in: sourceIds } },
+        where: { id: { in: allSourceIds } },
         select: { id: true, title: true },
       })
     : [];
@@ -149,17 +167,49 @@ export default async function ConsciousnessPage() {
               </div>
             ) : (
               <ul className="space-y-2">
-                {improvementRuns.map((r) => (
-                  <li key={r.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 flex items-center justify-between text-sm">
-                    <div>
-                      <div className="text-slate-200 font-medium">{r.summary || "—"}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {new Date(r.startedAt).toLocaleString("he-IL")} · משך {r.completedAt ? Math.round((r.completedAt.getTime() - r.startedAt.getTime()) / 1000) : "—"}s · {r.status}
+                {improvementRuns.map((r) => {
+                  const versions = versionsBySnapshot[r.snapshotId] || [];
+                  return (
+                    <li key={r.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <Link href={`/learn/logs/improvement/${r.id}`} className="text-slate-200 font-medium hover:text-cyan-300">
+                            {r.summary || "—"}
+                          </Link>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {new Date(r.startedAt).toLocaleString("he-IL")} · משך {r.completedAt ? Math.round((r.completedAt.getTime() - r.startedAt.getTime()) / 1000) : "—"}s · {r.status} · נבדקו {r.sourcesExamined} · שודרגו {r.sourcesImproved}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Link href={`/learn/logs/improvement/${r.id}`} className="text-[11px] bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-1 rounded">
+                            תוצאות →
+                          </Link>
+                          <div className="text-amber-300 font-mono">${r.totalCostUsd.toFixed(4)}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-amber-300 font-mono">${r.totalCostUsd.toFixed(4)}</div>
-                  </li>
-                ))}
+                      {versions.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="text-[11px] text-cyan-400 cursor-pointer hover:underline">
+                            הצג {versions.length} פרומפטים ששודרגו
+                          </summary>
+                          <ul className="mt-2 space-y-1 pr-3 border-r border-slate-800">
+                            {versions.map((v) => (
+                              <li key={v.id} className="text-xs">
+                                <Link href={`/learn/sources/${v.sourceId}/logs`} className="flex items-start justify-between gap-3 bg-slate-950/40 hover:bg-slate-900 rounded p-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-white font-medium truncate">{titleById[v.sourceId] || "(ללא כותרת)"}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{v.reason || "—"}</div>
+                                  </div>
+                                  <span className="text-[10px] text-purple-300 font-mono shrink-0">v{v.version}</span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Section>

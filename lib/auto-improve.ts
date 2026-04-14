@@ -86,6 +86,7 @@ export async function runAutoImprovement(
   maxCandidates = 5,
   jobId?: string,
 ): Promise<{
+  runId: string;
   examined: number;
   improved: number;
   totalCostUsd: number;
@@ -222,7 +223,7 @@ export async function runAutoImprovement(
       },
     });
 
-    return { examined: stale.length, improved, totalCostUsd: totalCost, details };
+    return { runId: run.id, examined: stale.length, improved, totalCostUsd: totalCost, details };
   } catch (e: any) {
     await prisma.improvementRun.update({
       where: { id: run.id },

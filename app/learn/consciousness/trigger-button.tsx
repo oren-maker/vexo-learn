@@ -61,7 +61,11 @@ export default function TriggerImprovementButton({ snapshotId }: { snapshotId: s
           onComplete={(r) => {
             setJobId(null);
             setDone(r);
-            setTimeout(() => window.location.reload(), 2500);
+            if (r?.runId) {
+              setTimeout(() => {
+                window.location.href = `/learn/logs/improvement/${r.runId}`;
+              }, 1500);
+            }
           }}
           onFailed={(e) => { setJobId(null); setErr(e); }}
         />
@@ -69,7 +73,7 @@ export default function TriggerImprovementButton({ snapshotId }: { snapshotId: s
 
       {done && (
         <div className="mt-3 text-xs text-emerald-300">
-          ✓ הושלם · נבדקו {done.examined} · שודרגו {done.improved} · עלות ${done.totalCostUsd?.toFixed(4) || "0"}
+          ✓ הושלם · נבדקו {done.examined} · שודרגו {done.improved} · עלות ${done.totalCostUsd?.toFixed(4) || "0"} · מעביר לדף התוצאות…
         </div>
       )}
       {err && <div className="mt-3 text-xs text-red-400">⚠ {err}</div>}
