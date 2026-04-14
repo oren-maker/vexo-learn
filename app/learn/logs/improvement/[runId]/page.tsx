@@ -13,10 +13,15 @@ export default async function ImprovementRunPage({ params }: { params: { runId: 
   const versions = await prisma.promptVersion.findMany({
     where: { triggeredBy: "auto-improve", snapshotId: run.snapshotId },
     orderBy: { createdAt: "desc" },
-    include: {
-      source: { select: { id: true, title: true, prompt: true, userRating: true } },
-    },
   });
+  const sources = versions.length
+    ? await prisma.learnSource.findMany({
+        where: { id: { in: Array.from(new Set(versions.map((v) => v.sourceId))) } },
+        select: { id: true, title: true, prompt: true, userRating: true },
+      })
+    : [];
+  const sourceById: Record<string, { id: string; title: string | null; prompt: string; userRating: number | null }> = {};
+  for (const s of sources) sourceById[s.id] = s;
 
   const snapshot = await prisma.insightsSnapshot.findUnique({ where: { id: run.snapshotId } });
 
@@ -99,7 +104,7 @@ export default async function ImprovementRunPage({ params }: { params: { runId: 
                       href={`/learn/sources/${v.sourceId}`}
                       className="text-lg font-bold text-white hover:text-cyan-300"
                     >
-                      {v.source.title || "(ללא כותרת)"}
+                      {sourceById[v.sourceId]?.title || "(ללא כותרת)"}
                     </Link>
                     <div className="text-[11px] text-slate-500 mt-1">
                       גרסה v{v.version} · {new Date(v.createdAt).toLocaleString("he-IL")}
@@ -147,10 +152,10 @@ export default async function ImprovementRunPage({ params }: { params: { runId: 
                       <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
                         אחרי (גרסה נוכחית)
                       </span>
-                      <span>{v.source.prompt.split(/\s+/).length} מילים</span>
+                      <span>{(sourceById[v.sourceId]?.prompt || "").split(/\s+/).length} מילים</span>
                     </div>
                     <div className="bg-slate-950/60 border border-emerald-500/20 rounded-lg p-3 text-xs text-emerald-50 whitespace-pre-wrap max-h-64 overflow-y-auto">
-                      {v.source.prompt}
+                      {(sourceById[v.sourceId]?.prompt || "")}
                     </div>
                   </div>
                 </div>
