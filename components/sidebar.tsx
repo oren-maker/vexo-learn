@@ -19,6 +19,7 @@ const groups = [
     icon: "🧠",
     items: [
       { href: "/learn/insights", label: "תובנות", icon: "📊" },
+      { href: "/learn/consciousness", label: "תודעה", icon: "🧠" },
       { href: "/learn", label: "Feed", icon: "📚" },
       { href: "/learn/sources", label: "ספרייה", icon: "🎬" },
       { href: "/learn/knowledge", label: "Knowledge", icon: "🧠" },
@@ -35,9 +36,8 @@ const groups = [
   },
   {
     title: "ניהול",
-    icon: "🧠",
+    icon: "⚙️",
     items: [
-      { href: "/learn/consciousness", label: "תודעה", icon: "🧠" },
       { href: "/learn/tokens", label: "Tokens", icon: "💰" },
     ],
   },

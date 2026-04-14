@@ -244,7 +244,7 @@ function SnapshotTimeline({ snapshots }: { snapshots: any[] }) {
   return (
     <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 space-y-4">
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40" dir="ltr" preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40" preserveAspectRatio="none">
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="rgb(34 211 238)" stopOpacity="0.4" />
