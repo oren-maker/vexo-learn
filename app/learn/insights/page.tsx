@@ -19,11 +19,34 @@ export default async function InsightsPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-white">תובנות על המאגר</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          ניתוח צולב של כל {t.sources} הפרומפטים. <b>זו הלמידה האמיתית</b> — דפוסים שמופיעים על פני המאגר כולו, לא תיוג של פרומפט בודד.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold text-white">תובנות על המאגר</h1>
+          <p className="text-sm text-slate-400 mt-1">
+            ניתוח צולב של כל {t.sources} הפרומפטים. <b>זו הלמידה האמיתית</b> — דפוסים שמופיעים על פני המאגר כולו, לא תיוג של פרומפט בודד.
+          </p>
+          <p className="text-[11px] text-slate-500 mt-2">
+            🕐 המערכת עושה snapshot כל שעה ושומרת היסטוריה. פתח{" "}
+            <Link href="/learn/logs?tab=snapshots" className="text-cyan-400 hover:underline">לוגי תובנות</Link>
+            {" "}או{" "}
+            <Link href="/learn/consciousness" className="text-cyan-400 hover:underline">תודעה</Link>
+            {" "}כדי לראות את כל ההיסטוריה.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href="/learn/logs"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-700"
+          >
+            📂 כל הלוגים
+          </Link>
+          <Link
+            href="/learn/consciousness"
+            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs px-3 py-2 rounded-lg"
+          >
+            🧠 תודעה
+          </Link>
+        </div>
       </header>
 
       {/* Headline KPIs */}
