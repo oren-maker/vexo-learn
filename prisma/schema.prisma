@@ -116,19 +116,23 @@ model GeneratedImage {
 }
 
 model GeneratedVideo {
-  id           String   @id @default(cuid())
-  sourceId     String
-  blobUrl      String
-  model        String     // "veo-3.0-generate-preview" | "veo-3.0-fast-generate-preview"
-  usdCost      Float      @default(0)
-  durationSec  Int        @default(8)
-  aspectRatio  String     @default("16:9")
-  promptHead   String     @db.Text
-  status       String     @default("pending")
-  operationId  String?
-  error        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id              String   @id @default(cuid())
+  sourceId        String
+  blobUrl         String
+  model           String
+  usdCost         Float    @default(0)
+  durationSec     Int      @default(8)
+  aspectRatio     String   @default("16:9")
+  promptHead      String   @db.Text
+  status          String   @default("pending") // submitting | rendering | downloading | uploading | complete | failed
+  progressPct     Int      @default(0)
+  progressMessage String?
+  operationId     String?
+  error           String?
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([sourceId])
   @@index([status])

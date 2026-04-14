@@ -5,8 +5,9 @@ import { extractInstagram } from "@/lib/instagram";
 import { extractPromptFromVideo } from "@/lib/gemini-prompt-from-video";
 import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { generateImageFromPrompt } from "@/lib/gemini-image";
-import { generateVideoVEO3, estimateVeoCost, type VeoModel } from "@/lib/gemini-video-gen";
+import { startVideoGeneration, runVideoGeneration, type VeoModel } from "@/lib/gemini-video-gen";
 import { revalidatePath } from "next/cache";
+import { waitUntil } from "@vercel/functions";
 
 export async function deleteVideoAction(videoId: string, sourceId: string) {
   try {
@@ -26,17 +27,17 @@ export async function generateVideoAction(
   if (!source) return { ok: false as const, error: "source not found" };
   const model: VeoModel = opts.fast === false ? "veo-3.1-generate-preview" : "veo-3.1-fast-generate-preview";
   const duration = opts.durationSec || 8;
-  const estimate = estimateVeoCost(model, duration);
   try {
-    const r = await generateVideoVEO3(source.prompt, sourceId, {
+    const videoId = await startVideoGeneration(source.prompt, sourceId, {
       model,
       durationSec: duration,
       aspectRatio: opts.aspectRatio || "16:9",
     });
-    revalidatePath(`/learn/sources/${sourceId}`);
-    return { ok: true as const, blobUrl: r.blobUrl, cost: r.usdCost, model: r.model, videoId: r.videoId };
+    // Fire-and-forget: the function stays alive via waitUntil while the client polls.
+    waitUntil(runVideoGeneration(videoId, source.prompt).catch(() => {}));
+    return { ok: true as const, videoId };
   } catch (e: any) {
-    return { ok: false as const, error: String(e.message || e).slice(0, 300), estimate };
+    return { ok: false as const, error: String(e.message || e).slice(0, 300) };
   }
 }
 
