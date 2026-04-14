@@ -32,7 +32,16 @@ export function rateLimit(key: string, limit: number, windowMs: number): { allow
 }
 
 export function getClientKey(req: Request): string {
+  // On Vercel, trust only the Vercel-set headers. x-forwarded-for can be spoofed
+  // by clients setting their own header; the last entry in the list is the one
+  // Vercel's edge added. Prefer x-real-ip which Vercel controls.
+  const vercelIp = req.headers.get("x-real-ip");
+  if (vercelIp) return vercelIp;
   const fwd = req.headers.get("x-forwarded-for");
-  const ip = fwd?.split(",")[0].trim() || req.headers.get("x-real-ip") || "anon";
-  return ip;
+  if (fwd) {
+    // Take the LAST entry (closest to our server = Vercel's edge)
+    const parts = fwd.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return "anon";
 }

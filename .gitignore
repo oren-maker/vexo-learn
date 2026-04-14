@@ -47,3 +47,7 @@ uploads/
 .env*.local
 .internal_key_generated.txt
 .env.production
+.env.vl-internal
+.env.vl*
+.env.*.local
+.env.local

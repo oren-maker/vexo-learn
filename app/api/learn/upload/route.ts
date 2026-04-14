@@ -1,8 +1,11 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 // Client-side direct upload to Vercel Blob. Returns a signed URL the browser can PUT to.
 export async function POST(request: Request): Promise<NextResponse> {
+  const unauth = requireAdmin(request);
+  if (unauth) return unauth;
   const body = (await request.json()) as HandleUploadBody;
 
   try {
@@ -20,6 +23,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json(jsonResponse);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 400 });
+    console.error("[upload]", e);
+    return NextResponse.json({ error: "upload failed" }, { status: 400 });
   }
 }

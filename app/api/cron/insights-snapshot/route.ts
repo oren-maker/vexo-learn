@@ -6,9 +6,9 @@ export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
+  if (auth !== `Bearer ${secret}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const snap = await snapshotInsights();
     // Auto-improve a small batch after every snapshot so the corpus keeps tightening.
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ ok: true, snapshot: snap, improvement });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("[cron insights-snapshot]", e);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 }

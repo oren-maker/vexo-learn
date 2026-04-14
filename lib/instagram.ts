@@ -45,12 +45,39 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&#x27;/g, "'");
 }
 
+async function tryInstagramDirect(clean: string, attempts = 3): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const r = await instagramGetUrl(clean);
+      const url = r?.url_list?.[0];
+      if (url) return url;
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      console.warn(`[ig] attempt ${i + 1}/${attempts} failed:`, msg.slice(0, 200));
+      // 572/429/5xx — Instagram proxy rate-limit or transient. Retry with backoff.
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
 export async function extractInstagram(url: string): Promise<IgExtract> {
   const clean = url.split("?")[0]; // strip tracking params
-  const r = await instagramGetUrl(clean);
-  const videoUrl = r?.url_list?.[0] || null;
 
-  const meta = await fetchMetaTags(clean);
+  // Run direct + meta in parallel. Meta tags work even when the direct URL fetch fails.
+  const [videoUrl, meta] = await Promise.all([
+    tryInstagramDirect(clean),
+    fetchMetaTags(clean),
+  ]);
+
+  if (!videoUrl && !meta.caption && !meta.thumbnail) {
+    throw new Error(
+      "Instagram חסום זמנית. נסה שוב בעוד דקה-שתיים, או העלה את הקובץ ידנית דרך לשונית 'העלאת קובץ'.",
+    );
+  }
 
   return {
     videoUrl,

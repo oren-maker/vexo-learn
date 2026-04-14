@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { del } from "@vercel/blob";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const source = await prisma.learnSource.findUnique({
@@ -11,7 +12,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json(source);
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const src = await prisma.learnSource.findUnique({ where: { id: params.id } });
   if (src?.blobUrl && src.type === "upload") {
     try {

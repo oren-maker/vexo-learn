@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { runAutoImprovement } from "@/lib/auto-improve";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -8,6 +9,11 @@ export const maxDuration = 300;
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const run = url.searchParams.get("run") === "1";
+  // GET with side-effect requires admin auth
+  if (run) {
+    const unauth = requireAdmin(req);
+    if (unauth) return unauth;
+  }
 
   const total = await prisma.learnSource.count();
   const complete = await prisma.learnSource.count({ where: { status: "complete" } });

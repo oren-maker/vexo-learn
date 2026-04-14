@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncCeDanceRepo } from "@/lib/github-cedance";
 
+export const maxDuration = 300;
+
 function checkAuth(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
   return key && key === process.env.INTERNAL_API_KEY;
@@ -9,7 +11,7 @@ function checkAuth(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
-  const { owner, repo, path, token } = body;
+  const { owner, repo, path } = body;
   if (!owner || !repo || !path) {
     return NextResponse.json(
       { error: "owner, repo, path נדרשים", hint: "דוגמה: {owner:'x', repo:'y', path:'prompts'}" },
@@ -21,10 +23,11 @@ export async function POST(req: NextRequest) {
       owner,
       repo,
       path,
-      token: token || process.env.GITHUB_TOKEN || undefined,
+      token: process.env.GITHUB_TOKEN || undefined,
     });
     return NextResponse.json(result);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("[internal sync cedance]", e);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 }

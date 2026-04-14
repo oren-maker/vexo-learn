@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { extractAllDeterministic } from "@/lib/text-knowledge-extractor";
 import { createJob, finishJob, failJob } from "@/lib/sync-jobs";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const jobId = await createJob("pattern-extract", 0, "מתחיל…");
   waitUntil(
     (async () => {

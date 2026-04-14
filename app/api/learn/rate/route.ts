@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   try {
     const { sourceId, rating } = await req.json();
     if (!sourceId) return NextResponse.json({ ok: false, error: "sourceId נדרש" }, { status: 400 });
@@ -17,6 +20,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, rating: r });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 500 });
+    console.error("[rate]", e);
+    return NextResponse.json({ ok: false, error: "internal error" }, { status: 500 });
   }
 }
