@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import StatusBadge from "@/components/status-badge";
 import AutoRefresh from "@/components/auto-refresh";
+import SuggestSimilar from "@/components/suggest-similar";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +120,10 @@ export default async function SourceDetail({ params }: { params: { id: string } 
           )}
         </section>
       )}
+
+      <div className="mt-6">
+        <SuggestSimilar sourceId={source.id} />
+      </div>
     </div>
   );
 }

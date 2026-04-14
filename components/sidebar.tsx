@@ -5,10 +5,16 @@ import { usePathname } from "next/navigation";
 
 const groups = [
   {
+    title: "יצירה",
+    items: [
+      { href: "/learn/compose", label: "מחולל פרומפטים", icon: "✨" },
+      { href: "/learn/search", label: "חיפוש וידאו", icon: "🔍" },
+    ],
+  },
+  {
     title: "למידה",
     items: [
-      { href: "/learn", label: "Feed אישי", icon: "📚" },
-      { href: "/learn/search", label: "חיפוש וידאו", icon: "🔍" },
+      { href: "/learn", label: "Feed", icon: "📚" },
       { href: "/learn/knowledge", label: "Knowledge Base", icon: "🧠" },
     ],
   },
@@ -16,8 +22,8 @@ const groups = [
     title: "ניהול",
     items: [
       { href: "/learn/sources", label: "מקורות", icon: "🎬" },
-      { href: "/learn/sources/new", label: "הוספת URL", icon: "➕" },
-      { href: "/learn/sync", label: "סנכרון CeDance", icon: "🔄" },
+      { href: "/learn/sources/new", label: "הוספת URL/קובץ", icon: "➕" },
+      { href: "/learn/sync", label: "סנכרון ויבוא", icon: "🔄" },
     ],
   },
 ];
