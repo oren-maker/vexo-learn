@@ -4,6 +4,7 @@ import { syncSeedanceRepo } from "@/lib/seedance-parser";
 import { syncCeDanceRepo } from "@/lib/github-cedance";
 import { syncAllRegistry } from "@/lib/generic-md-parser";
 import { extractAllPending } from "@/lib/gemini-knowledge";
+import { extractAllDeterministic } from "@/lib/text-knowledge-extractor";
 import { prisma } from "@/lib/db";
 
 // Sync all extra curated repos (hr98w/awesome-sora-prompts, SoraEase, etc.)
@@ -19,10 +20,20 @@ export async function runMultiSyncAction() {
   }
 }
 
-// Extract knowledge from all sources that don't have analysis yet.
+// Extract knowledge from all sources that don't have analysis yet (Gemini - slow, requires quota).
 export async function runKnowledgeExtractionAction(limit = 200) {
   try {
     const r = await extractAllPending(limit);
+    return { ok: true as const, ...r };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e) };
+  }
+}
+
+// Pattern-based extraction (no LLM, instant, runs on the full corpus).
+export async function runPatternExtractionAction() {
+  try {
+    const r = await extractAllDeterministic();
     return { ok: true as const, ...r };
   } catch (e: any) {
     return { ok: false as const, error: String(e.message || e) };

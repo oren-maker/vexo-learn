@@ -8,6 +8,7 @@ import {
   runCsvImportAction,
   runMultiSyncAction,
   runKnowledgeExtractionAction,
+  runPatternExtractionAction,
 } from "./actions";
 
 type Tab = "seedance" | "multi" | "github" | "json" | "csv" | "knowledge";
@@ -83,6 +84,13 @@ export default function SyncPage() {
       if (!r.ok) setErr(r.error); else setResult(r);
     });
   }
+  function extractPattern() {
+    setErr(""); setResult(null);
+    startTransition(async () => {
+      const r = await runPatternExtractionAction();
+      if (!r.ok) setErr(r.error); else setResult(r);
+    });
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -142,21 +150,39 @@ export default function SyncPage() {
       )}
 
       {tab === "knowledge" && (
-        <Panel
-          title="חילוץ Knowledge Nodes מ-Gemini"
-          subtitle="לכל פרומפט שאין לו עדיין ניתוח — שולח ל-Gemini Flash ומחלץ: טכניקות, סגנון, mood, תגיות, הוראות שחזור, תובנות. תוצאה: KnowledgeNodes מסווגים זמינים ל-AI Director דרך RAG."
-        >
-          <button
-            onClick={extractKnowledge}
-            disabled={pending}
-            className="bg-purple-500 hover:bg-purple-400 text-white font-medium px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+        <div className="space-y-4">
+          <Panel
+            title="חילוץ Knowledge — Pattern Matching (מומלץ)"
+            subtitle="מנתח את הטקסט של כל 205 הפרומפטים לפי ספריית דפוסים קולנועיים (130+ טכניקות, 24 סגנונות, 14 moods, 25 תגיות). רץ באופן מקומי — ללא תלות ב-API, 1000+ nodes בתוך כ-3 דקות."
           >
-            {pending ? "מעבד (זה יכול לקחת 5-15 דקות)..." : "🧠 חלץ knowledge מכל הפרומפטים"}
-          </button>
-          <div className="text-[11px] text-slate-500 mt-3">
-            רץ על Gemini Flash (חינם). מוגבל ל-15 בקשות לדקה — לכן יש השהיה של 2 שניות בין קריאות.
-          </div>
-        </Panel>
+            <button
+              onClick={extractPattern}
+              disabled={pending}
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-medium px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+            >
+              {pending ? "מנתח..." : "⚡ הרץ ניתוח דפוסים"}
+            </button>
+            <div className="text-[11px] text-slate-500 mt-3">
+              מיידי · בטוח להפעלה חוזרת · יעדכן analyses קיימים שהם רזים מדי (פחות techniques).
+            </div>
+          </Panel>
+
+          <Panel
+            title="חילוץ Knowledge מ-Gemini (איכות גבוהה יותר, דורש מפתח פעיל)"
+            subtitle="שולח כל פרומפט ל-Gemini Flash ומקבל ניתוח semantic מעמיק. מיועד ל-sources שאין להם עדיין ניתוח דפוסים מלא."
+          >
+            <button
+              onClick={extractKnowledge}
+              disabled={pending}
+              className="bg-purple-500 hover:bg-purple-400 text-white font-medium px-5 py-2.5 rounded-lg text-sm disabled:opacity-50"
+            >
+              {pending ? "מעבד..." : "🧠 הרץ ב-Gemini"}
+            </button>
+            <div className="text-[11px] text-slate-500 mt-3">
+              איטי (~2s לבקשה) · דורש Gemini quota פנוי · שגיאות quota אינן קריטיות, אפשר להריץ שוב מאוחר.
+            </div>
+          </Panel>
+        </div>
       )}
 
       {tab === "github" && (
