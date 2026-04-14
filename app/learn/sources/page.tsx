@@ -161,8 +161,16 @@ function Pagination({ page, totalPages, total, pageSize, filter }: { page: numbe
   }
 
   // Build page numbers: always show 1, last, current±2
-  const pages = new Set<number>([1, totalPages, page, page - 1, page + 1, page - 2, page + 2]);
-  const visible = [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  const candidates = [1, totalPages, page, page - 1, page + 1, page - 2, page + 2];
+  const seen = new Set<number>();
+  const visible: number[] = [];
+  for (const p of candidates) {
+    if (p >= 1 && p <= totalPages && !seen.has(p)) {
+      seen.add(p);
+      visible.push(p);
+    }
+  }
+  visible.sort((a, b) => a - b);
 
   return (
     <div className="px-4 py-3 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between flex-wrap gap-3">
