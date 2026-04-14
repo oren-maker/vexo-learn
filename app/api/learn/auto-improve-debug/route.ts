@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { runAutoImprovement } from "@/lib/auto-improve";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const run = url.searchParams.get("run") === "1";
+
   const total = await prisma.learnSource.count();
   const complete = await prisma.learnSource.count({ where: { status: "complete" } });
   const withAnalysis = await prisma.learnSource.count({ where: { analysis: { isNot: null } } });
@@ -12,7 +17,6 @@ export async function GET() {
   });
   const byStatus = await prisma.learnSource.groupBy({ by: ["status"], _count: true });
 
-  // Sample top 3 weakest
   const candidates = await prisma.learnSource.findMany({
     where: { status: "complete", analysis: { isNot: null } },
     include: { analysis: true },
@@ -30,7 +34,7 @@ export async function GET() {
     .sort((a, b) => a.score - b.score)
     .slice(0, 5);
 
-  return NextResponse.json({
+  const base: any = {
     total,
     complete,
     withAnalysis,
@@ -39,5 +43,21 @@ export async function GET() {
     topWeakest: ranked,
     geminiKeySet: !!process.env.GEMINI_API_KEY,
     anthropicKeySet: !!process.env.ANTHROPIC_API_KEY,
-  });
+  };
+
+  if (run) {
+    const latestSnapshot = await prisma.insightsSnapshot.findFirst({ orderBy: { createdAt: "desc" } });
+    if (!latestSnapshot) {
+      base.runResult = { ok: false, error: "no snapshot exists" };
+    } else {
+      try {
+        const r = await runAutoImprovement(latestSnapshot.id, 2);
+        base.runResult = { ok: true, snapshotId: latestSnapshot.id, ...r };
+      } catch (e: any) {
+        base.runResult = { ok: false, error: String(e.message || e).slice(0, 500) };
+      }
+    }
+  }
+
+  return NextResponse.json(base);
 }
