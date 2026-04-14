@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import SyncProgress from "@/components/sync-progress";
 import {
   runSeedanceSyncAction,
   runGithubSyncAction,
@@ -84,12 +85,17 @@ export default function SyncPage() {
       if (!r.ok) setErr(r.error); else setResult(r);
     });
   }
-  function extractPattern() {
-    setErr(""); setResult(null);
-    startTransition(async () => {
-      const r = await runPatternExtractionAction();
-      if (!r.ok) setErr(r.error); else setResult(r);
-    });
+  const [jobId, setJobId] = useState<string | null>(null);
+  async function extractPattern() {
+    setErr(""); setResult(null); setJobId(null);
+    try {
+      const res = await fetch("/api/learn/pattern-extract", { method: "POST" });
+      const j = await res.json();
+      if (!res.ok || !j.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+      setJobId(j.jobId);
+    } catch (e: any) {
+      setErr(e.message || "שגיאה");
+    }
   }
 
   return (
@@ -259,6 +265,15 @@ export default function SyncPage() {
             {pending ? "מייבא..." : "📥 ייבא CSV"}
           </button>
         </Panel>
+      )}
+
+      {jobId && (
+        <SyncProgress
+          jobId={jobId}
+          steps={["טוען פרומפטים", "מריץ ניתוח דפוסים", "שומר Knowledge Nodes", "הושלם"]}
+          onComplete={(r) => { setJobId(null); setResult(r); }}
+          onFailed={(e) => { setJobId(null); setErr(e); }}
+        />
       )}
 
       {err && (

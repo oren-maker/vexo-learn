@@ -338,17 +338,37 @@ function analysisToNodes(a: ExtractedAnalysis, analysisId: string) {
   return nodes;
 }
 
-export async function extractAllDeterministic(): Promise<{ processed: number; createdAnalyses: number; totalNodes: number; updated: number }> {
+export async function extractAllDeterministic(
+  jobId?: string,
+): Promise<{ processed: number; createdAnalyses: number; totalNodes: number; updated: number }> {
+  const { updateJob } = await import("./sync-jobs");
+
+  if (jobId) await updateJob(jobId, { currentStep: "טוען פרומפטים מה-DB…" });
+
   const sources = await prisma.learnSource.findMany({
     where: { type: "cedance", status: "complete" },
     include: { analysis: true },
   });
 
+  if (jobId) await updateJob(jobId, {
+    totalItems: sources.length,
+    currentStep: "מריץ ניתוח דפוסים",
+    currentMessage: `0 / ${sources.length}`,
+  });
+
   let createdAnalyses = 0;
   let updated = 0;
   let totalNodes = 0;
+  let i = 0;
 
   for (const source of sources) {
+    i++;
+    if (jobId && (i % 5 === 0 || i === sources.length)) {
+      await updateJob(jobId, {
+        completedItems: i,
+        currentMessage: `${i} / ${sources.length} · נוצרו ${createdAnalyses} · שודרגו ${updated}`,
+      });
+    }
     const a = extractFromText(source.prompt);
     try {
       if (source.analysis) {
