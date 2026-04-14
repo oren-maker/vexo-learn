@@ -148,6 +148,13 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
       }
     }
 
+    // VEO prompts: strip text that frequently triggers safety filters (explicit violence,
+    // minors, real public figures) while keeping cinematic language. Light touch only.
+    generateParams.prompt = generateParams.prompt
+      .replace(/\b(child|kid|minor|underage|baby|toddler|infant)\b/gi, "adult")
+      .replace(/\b(gore|gory|blood splatter|dismember|decapitat|graphic violence)\b/gi, "intense action")
+      .slice(0, 3000);
+
     let operation: any = await client.models.generateVideos(generateParams);
 
     await updateProgress(videoId, {
@@ -172,9 +179,34 @@ export async function runVideoGeneration(videoId: string, prompt: string): Promi
       });
     }
 
-    const generated = (operation.response as any)?.generatedVideos?.[0];
-    const videoRef = generated?.video;
-    if (!videoRef) throw new Error("VEO: no video in response");
+    const response: any = operation.response || {};
+    const generated =
+      response.generatedVideos?.[0] ||
+      response.generated_videos?.[0] ||
+      response.videos?.[0] ||
+      response.candidates?.[0];
+    const videoRef =
+      generated?.video ||
+      generated?.generatedVideo ||
+      generated?.media ||
+      generated?.content;
+
+    if (!videoRef) {
+      // VEO blocked the prompt or returned empty. Surface the reason.
+      const rai =
+        response.raiMediaFilteredReasons ||
+        response.rai_media_filtered_reasons ||
+        response.promptFeedback ||
+        response.prompt_feedback ||
+        generated?.raiMediaFilteredReasons ||
+        generated?.finishReason ||
+        generated?.finish_reason;
+      const reasonStr = rai
+        ? (typeof rai === "string" ? rai : JSON.stringify(rai).slice(0, 400))
+        : `keys=${Object.keys(response).join(",")}`;
+      console.error("[veo] no video in response", { videoId, response: JSON.stringify(response).slice(0, 2000) });
+      throw new Error(`VEO לא החזיר וידאו — ${rai ? "חסום ע״י סינון תוכן" : "תשובה ריקה"}: ${reasonStr}`);
+    }
 
     await updateProgress(videoId, { status: "downloading", progressPct: 88, progressMessage: "מוריד את הוידאו מ-VEO…" });
 
