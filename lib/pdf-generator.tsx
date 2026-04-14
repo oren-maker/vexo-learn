@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer, Link } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer, Link, Image } from "@react-pdf/renderer";
 
 // Register Heebo for Hebrew + Latin. Fetched from Google Fonts at runtime by
 // @react-pdf which inlines it into the generated PDF.
@@ -185,6 +185,7 @@ export type PdfSourceData = {
     howTo: string[];
     insights: string[];
   } | null;
+  generatedImages?: Array<{ blobUrl: string; model: string; usdCost: number; createdAt: Date }>;
 };
 
 function PdfDoc({ s }: { s: PdfSourceData }) {
@@ -206,6 +207,15 @@ function PdfDoc({ s }: { s: PdfSourceData }) {
           <Link src={s.url} style={styles.url}>
             {s.url}
           </Link>
+        )}
+
+        {s.thumbnail && (
+          <View style={{ marginBottom: 14, marginTop: 4 }}>
+            <Image
+              src={s.thumbnail}
+              style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 4 }}
+            />
+          </View>
         )}
 
         <View style={styles.metaRow}>
@@ -275,6 +285,42 @@ function PdfDoc({ s }: { s: PdfSourceData }) {
             <View style={styles.techRow}>
               {a.tags.map((t, i) => (
                 <Text key={i} style={styles.tagChip}>#{t}</Text>
+              ))}
+            </View>
+          </>
+        )}
+
+        {s.generatedImages && s.generatedImages.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>
+              תמונות שחוללו · GENERATED IMAGES ({s.generatedImages.length})
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {s.generatedImages.map((img, i) => (
+                <View
+                  key={i}
+                  style={{
+                    width: "48%",
+                    border: `1 solid ${PALETTE.border}`,
+                    borderRadius: 4,
+                    padding: 4,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Image
+                    src={img.blobUrl}
+                    style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 3 }}
+                  />
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+                    <Text style={{ fontSize: 7, color: PALETTE.accent }}>{img.model}</Text>
+                    <Text style={{ fontSize: 7, color: PALETTE.amber, fontWeight: 700 }}>
+                      ${img.usdCost.toFixed(4)}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 6, color: PALETTE.light, marginTop: 2 }}>
+                    {new Date(img.createdAt).toLocaleDateString("he-IL")}
+                  </Text>
+                </View>
               ))}
             </View>
           </>

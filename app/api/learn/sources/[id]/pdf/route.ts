@@ -17,12 +17,23 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!source) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  // Fast path: return cached PDF URL if present and not forcing regeneration
-  if (!force && source.pdfBlobUrl) {
+  const generatedImages = await prisma.generatedImage.findMany({
+    where: { sourceId: source.id },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Cache validity: regenerate if a new image was added after last PDF generation,
+  // or if analysis/source was updated after last PDF generation.
+  const latestImage = generatedImages[0]?.createdAt;
+  const isStale =
+    !source.pdfGeneratedAt ||
+    (latestImage && latestImage > source.pdfGeneratedAt) ||
+    (source.updatedAt > source.pdfGeneratedAt);
+
+  if (!force && source.pdfBlobUrl && !isStale) {
     return NextResponse.redirect(source.pdfBlobUrl, 302);
   }
 
-  // Generate fresh
   const data: PdfSourceData = {
     id: source.id,
     title: source.title,
@@ -43,6 +54,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           insights: source.analysis.insights,
         }
       : null,
+    generatedImages: generatedImages.map((g) => ({
+      blobUrl: g.blobUrl,
+      model: g.model,
+      usdCost: g.usdCost,
+      createdAt: g.createdAt,
+    })),
   };
 
   let buffer: Buffer;
@@ -52,7 +69,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: `PDF generation failed: ${e.message}` }, { status: 500 });
   }
 
-  // Upload to Vercel Blob and cache the URL
   const filename = `pdfs/${source.id}-${Date.now()}.pdf`;
   try {
     const blob = await put(filename, buffer, {
@@ -72,8 +88,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       });
     }
     return NextResponse.redirect(blob.url, 302);
-  } catch (e: any) {
-    // Blob upload failed; still return the bytes
+  } catch {
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
