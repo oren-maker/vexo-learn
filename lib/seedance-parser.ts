@@ -1,20 +1,10 @@
 // Parser for https://github.com/YouMind-OpenLab/awesome-seedance-2-prompts
-// The repo stores ~1700 prompts inside a single README.md, with a consistent structure:
-//   ### No. X: Title
-//   #### 📖 Description
-//   <desc text>
-//   #### 📝 Prompt
-//   ```
-//   <the actual prompt>
-//   ```
-//   #### 🎬 Video
-//   <a href="...releases/download/videos/N.mp4">
-//   #### 📌 Details
-//   - **Author:** [name](url)
-//   - **Source:** [label](url)
+// The README.md contains 1700+ prompts in two sections:
+//   - Featured: `### No. X: Title` (6 prompts)
+//   - All Prompts: `### Title` (thousands, under "## 🎬 All Prompts" section)
 //
-// Each prompt gets saved as a LearnSource (type "cedance", status "complete") with
-// the video URL and prompt text. Gemini analysis can be triggered manually later.
+// Both use `#### 📝 Prompt\n\n```\n<text>\n```` and have video URLs +
+// youmind.com links + Author/Source metadata.
 
 import { prisma } from "./db";
 
@@ -22,13 +12,15 @@ const REPO = "YouMind-OpenLab/awesome-seedance-2-prompts";
 const README_URL = `https://raw.githubusercontent.com/${REPO}/main/README.md`;
 
 export type SeedancePrompt = {
-  number: number;
+  externalId: string;
   title: string;
   description: string;
   prompt: string;
   videoUrl: string | null;
+  thumbnail: string | null;
   author: string | null;
   sourceLink: string | null;
+  youmindUrl: string | null;
   featured: boolean;
 };
 
@@ -41,59 +33,79 @@ export async function fetchReadme(): Promise<string> {
   return res.text();
 }
 
-// Extract one field from a prompt block, between `marker` and the next `#### ` or end of block.
-function extractSection(block: string, marker: string): string {
-  const idx = block.indexOf(marker);
-  if (idx === -1) return "";
-  const after = block.slice(idx + marker.length);
-  const next = after.search(/\n####\s/);
-  return (next === -1 ? after : after.slice(0, next)).trim();
-}
-
 export function parsePromptBlocks(markdown: string): SeedancePrompt[] {
-  // Split on `### No. N: Title` - each block contains one prompt.
-  const blocks = markdown.split(/\n### No\. (\d+):\s+/);
+  // Split the whole doc by `\n### ` (top-level prompt heading). First element is intro; skip.
+  const parts = markdown.split(/\n### /);
   const results: SeedancePrompt[] = [];
 
-  // blocks[0] is the intro (before first prompt). After that they pair up: [number, blockText, number, blockText, ...]
-  for (let i = 1; i < blocks.length; i += 2) {
-    const number = parseInt(blocks[i], 10);
-    const text = blocks[i + 1] || "";
-    if (!number || !text) continue;
+  for (let i = 1; i < parts.length; i++) {
+    const block = parts[i];
 
-    // The title is on the first line of the block, before the first `\n`.
-    const titleMatch = text.match(/^([^\n]+)/);
-    const title = (titleMatch?.[1] || `Prompt #${number}`).trim();
+    // Stop at the next `## ` section (after all prompts), if it leaked in.
+    const sectionEnd = block.search(/\n## /);
+    const body = sectionEnd === -1 ? block : block.slice(0, sectionEnd);
 
-    // Description
-    const description = extractSection(text, "#### 📖 Description").slice(0, 2000);
+    // First line = title. May be "No. X: Actual Title" or just "Actual Title".
+    const firstLineEnd = body.indexOf("\n");
+    const firstLine = firstLineEnd === -1 ? body : body.slice(0, firstLineEnd);
+    if (!firstLine.trim()) continue;
 
-    // Prompt text: between first ``` (optional language tag) and next ``` within "#### 📝 Prompt" section.
-    const promptSection = extractSection(text, "#### 📝 Prompt");
-    const promptMatch = promptSection.match(/```[a-z]*\n([\s\S]*?)\n```/);
-    const promptText = promptMatch ? promptMatch[1].trim() : promptSection.trim();
-    if (!promptText || promptText.length < 20) continue; // skip malformed
+    const featuredMatch = firstLine.match(/^No\.\s*(\d+):\s*(.+)$/);
+    const featured = !!featuredMatch;
+    const title = (featuredMatch ? featuredMatch[2] : firstLine).trim().slice(0, 250);
 
-    // Video URL (MP4)
-    const videoMatch = text.match(/https:\/\/github\.com\/[^\s"'<>)]+\/releases\/download\/videos\/\d+\.mp4/);
-    const videoUrl = videoMatch ? videoMatch[0] : null;
+    // Extract the first fenced code block anywhere in the body (that's the prompt).
+    const codeMatch = body.match(/```[a-zA-Z]*\n([\s\S]*?)\n```/);
+    if (!codeMatch) continue;
+    const promptText = codeMatch[1].trim();
+    if (promptText.length < 20) continue;
 
-    // Author & source from details
-    const detailsSection = extractSection(text, "#### 📌 Details");
-    const authorMatch = detailsSection.match(/\*\*Author:\*\*\s*\[([^\]]+)\]/);
-    const sourceMatch = detailsSection.match(/\*\*Source:\*\*\s*\[[^\]]+\]\(([^)]+)\)/);
+    // Description: the blockquote line right after the title (`> text`), or from `#### 📖 Description`.
+    let description = "";
+    const descBq = body.match(/\n>\s+([^\n]+)/);
+    if (descBq) description = descBq[1].trim();
+    const descSec = body.match(/####\s*📖\s*Description\s*\n+([\s\S]*?)(?=\n####|$)/);
+    if (descSec) description = descSec[1].trim();
+    description = description.slice(0, 2000);
 
-    // Featured prompts are in the "Featured" section - check for badge
-    const featured = /!\[Featured\]/i.test(text);
+    // Video: prefer the releases MP4 link, else the cloudflarestream thumbnail's video, else null.
+    let videoUrl: string | null = null;
+    const mp4Match = body.match(/https:\/\/github\.com\/[^\s"'<>)]+\/releases\/download\/videos\/\d+\.mp4/);
+    if (mp4Match) videoUrl = mp4Match[0];
+
+    // Thumbnail
+    const thumbMatch = body.match(/https:\/\/customer-[^\s"'<>)]+\/thumbnails\/thumbnail\.jpg/);
+    const thumbnail = thumbMatch ? thumbMatch[0] : null;
+
+    // Youmind URL with id (stable external id)
+    const youmindMatch = body.match(/https:\/\/youmind\.com\/[a-zA-Z-]+\/seedance-2-0-prompts\?id=(\d+)/);
+    const youmindId = youmindMatch ? youmindMatch[1] : null;
+    const youmindUrl = youmindMatch ? youmindMatch[0] : null;
+
+    // Author & source
+    const authorMatch = body.match(/\*\*Author:\*\*\s*\[([^\]]+)\]/);
+    const sourceMatch = body.match(/\*\*Source:\*\*\s*\[[^\]]+\]\(([^)]+)\)/);
+
+    // External ID: prefer youmind numeric id; else featured No.; else hash of title.
+    let externalId: string;
+    if (youmindId) externalId = `seedance-${youmindId}`;
+    else if (featuredMatch) externalId = `seedance-featured-${featuredMatch[1]}`;
+    else {
+      // Fallback: slug of title, trimmed
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
+      externalId = `seedance-${slug}-${i}`;
+    }
 
     results.push({
-      number,
-      title: title.slice(0, 200),
+      externalId,
+      title,
       description,
       prompt: promptText,
       videoUrl,
+      thumbnail,
       author: authorMatch?.[1] || null,
       sourceLink: sourceMatch?.[1] || null,
+      youmindUrl,
       featured,
     });
   }
@@ -105,6 +117,7 @@ export async function syncSeedanceRepo(): Promise<{
   fetched: number;
   upserted: number;
   withVideo: number;
+  featured: number;
   errors: string[];
 }> {
   const md = await fetchReadme();
@@ -113,19 +126,21 @@ export async function syncSeedanceRepo(): Promise<{
   const errors: string[] = [];
   let upserted = 0;
   let withVideo = 0;
+  let featured = 0;
 
+  // Upsert in batches to keep transactions small.
   for (const p of prompts) {
     try {
       await prisma.learnSource.upsert({
-        where: { externalId: `seedance-${p.number}` },
+        where: { externalId: p.externalId },
         create: {
           type: "cedance",
           prompt: p.prompt,
           title: p.title,
-          url: p.videoUrl || p.sourceLink || `https://github.com/${REPO}`,
+          url: p.youmindUrl || p.videoUrl || `https://github.com/${REPO}`,
           blobUrl: p.videoUrl,
-          thumbnail: null,
-          externalId: `seedance-${p.number}`,
+          thumbnail: p.thumbnail,
+          externalId: p.externalId,
           status: "complete",
           addedBy: p.author || "seedance-sync",
         },
@@ -133,15 +148,18 @@ export async function syncSeedanceRepo(): Promise<{
           prompt: p.prompt,
           title: p.title,
           blobUrl: p.videoUrl,
+          thumbnail: p.thumbnail,
+          url: p.youmindUrl || p.videoUrl || undefined,
           addedBy: p.author || "seedance-sync",
         },
       });
       upserted++;
       if (p.videoUrl) withVideo++;
+      if (p.featured) featured++;
     } catch (e: any) {
-      errors.push(`#${p.number}: ${String(e.message || e).slice(0, 200)}`);
+      errors.push(`${p.externalId}: ${String(e.message || e).slice(0, 200)}`);
     }
   }
 
-  return { fetched: prompts.length, upserted, withVideo, errors };
+  return { fetched: prompts.length, upserted, withVideo, featured, errors };
 }
