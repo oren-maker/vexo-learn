@@ -85,27 +85,8 @@ export default async function ConsciousnessPage() {
 
           {latest && <TriggerImprovementButton snapshotId={latest.id} />}
 
-          <Section title="ציר זמן Snapshots" subtitle="כל עמודה = snapshot שעתי. גובה = כמות Knowledge Nodes">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-              <div className="flex items-end gap-1 h-24 justify-start">
-                {snapshots.slice().reverse().map((s) => {
-                  const max = Math.max(...snapshots.map((x) => x.nodesCount), 1);
-                  const h = Math.max(6, (s.nodesCount / max) * 90);
-                  return (
-                    <div
-                      key={s.id}
-                      className="w-3 bg-gradient-to-t from-cyan-500 to-purple-500 rounded-t cursor-help shrink-0"
-                      style={{ height: `${h}px` }}
-                      title={`${new Date(s.takenAt).toLocaleString("he-IL")} · ${s.sourcesCount} sources · ${s.nodesCount} nodes · ${s.avgTechniques} avg tech`}
-                    />
-                  );
-                })}
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-500 mt-2">
-                <span>{snapshots.length > 1 && new Date(snapshots[snapshots.length - 1].takenAt).toLocaleString("he-IL", { month: "2-digit", day: "2-digit" })}</span>
-                <span>עכשיו</span>
-              </div>
-            </div>
+          <Section title="ציר זמן Snapshots" subtitle="כל כרטיס = snapshot שעתי. הגרף העליון מראה צמיחת Knowledge Nodes לאורך זמן">
+            <SnapshotTimeline snapshots={snapshots} />
           </Section>
 
           <Section title="יומן שינויים בתובנות" subtitle="מה השתנה בין snapshot לקודמו">
@@ -233,6 +214,117 @@ export default async function ConsciousnessPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function SnapshotTimeline({ snapshots }: { snapshots: any[] }) {
+  // Oldest → newest (left to right)
+  const data = snapshots.slice().reverse();
+  const maxNodes = Math.max(...data.map((s) => s.nodesCount), 1);
+  const minNodes = Math.min(...data.map((s) => s.nodesCount), 0);
+  const range = Math.max(1, maxNodes - minNodes);
+
+  const W = 800;
+  const H = 160;
+  const PAD_X = 30;
+  const PAD_Y = 20;
+  const innerW = W - PAD_X * 2;
+  const innerH = H - PAD_Y * 2;
+
+  const points = data.map((s, i) => {
+    const x = data.length === 1 ? W / 2 : PAD_X + (i / (data.length - 1)) * innerW;
+    const y = PAD_Y + innerH - ((s.nodesCount - minNodes) / range) * innerH;
+    return { x, y, s };
+  });
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1]?.x.toFixed(1)},${H - PAD_Y} L${points[0]?.x.toFixed(1)},${H - PAD_Y} Z`;
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 space-y-4">
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40" dir="ltr" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(34 211 238)" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="rgb(168 85 247)" stopOpacity="0.03" />
+            </linearGradient>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgb(34 211 238)" />
+              <stop offset="100%" stopColor="rgb(168 85 247)" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75].map((r) => (
+            <line
+              key={r}
+              x1={PAD_X}
+              x2={W - PAD_X}
+              y1={PAD_Y + innerH * r}
+              y2={PAD_Y + innerH * r}
+              stroke="rgb(30 41 59)"
+              strokeDasharray="2 4"
+            />
+          ))}
+          <path d={areaPath} fill="url(#areaGrad)" />
+          <path d={linePath} stroke="url(#lineGrad)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="5" fill="rgb(15 23 42)" stroke="rgb(34 211 238)" strokeWidth="2" />
+              <circle cx={p.x} cy={p.y} r="2" fill="rgb(168 85 247)" />
+              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="10" fill="rgb(148 163 184)" fontFamily="monospace">
+                {p.s.nodesCount}
+              </text>
+            </g>
+          ))}
+          <text x={PAD_X} y={H - 4} fontSize="9" fill="rgb(100 116 139)" fontFamily="monospace">
+            {data[0] && new Date(data[0].takenAt).toLocaleString("he-IL", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </text>
+          <text x={W - PAD_X} y={H - 4} textAnchor="end" fontSize="9" fill="rgb(100 116 139)" fontFamily="monospace">
+            {data[data.length - 1] && new Date(data[data.length - 1].takenAt).toLocaleString("he-IL", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </text>
+          <text x={PAD_X - 4} y={PAD_Y + 4} textAnchor="end" fontSize="9" fill="rgb(100 116 139)" fontFamily="monospace">
+            {maxNodes}
+          </text>
+          <text x={PAD_X - 4} y={H - PAD_Y} textAnchor="end" fontSize="9" fill="rgb(100 116 139)" fontFamily="monospace">
+            {minNodes}
+          </text>
+        </svg>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {snapshots.slice(0, 8).map((s) => {
+          const delta = s.delta as any;
+          const nodesDelta = delta?.nodesAdded ?? 0;
+          const sourcesDelta = delta?.sourcesAdded ?? 0;
+          return (
+            <div key={s.id} className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+              <div className="text-[10px] text-slate-500 font-mono mb-1">
+                {new Date(s.takenAt).toLocaleString("he-IL", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-xl font-bold text-white">{s.nodesCount}</span>
+                {nodesDelta !== 0 && (
+                  <span className={`text-[10px] font-mono ${nodesDelta > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {nodesDelta > 0 ? "+" : ""}
+                    {nodesDelta}
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                {s.sourcesCount} sources
+                {sourcesDelta !== 0 && (
+                  <span className={nodesDelta > 0 ? "text-emerald-400 mr-1" : "text-red-400 mr-1"}>
+                    ({sourcesDelta > 0 ? "+" : ""}
+                    {sourcesDelta})
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-cyan-300 mt-0.5 font-mono">avg {s.avgTechniques} tech</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

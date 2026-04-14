@@ -7,6 +7,54 @@ import { prisma } from "./db";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-2.5-flash-image";
+const TEXT_MODEL = "gemini-flash-latest";
+
+// Based on the 6-layer image prompt framework (Subject → Action → Environment → Style → Lighting → Technical).
+// Word order matters: earlier layers dominate. Transform an arbitrary video prompt into a structured image prompt.
+const IMAGE_PROMPT_SYSTEM = `You convert video-scene descriptions into a single structured IMAGE-generation prompt for nano-banana / DALL-E / similar models.
+
+HARD RULE: word order controls emphasis — put the most critical element FIRST. Write the 6 layers in this exact order, each starting with a bold label:
+
+1. **Subject:** who/what — age, body, clothing materials, specific physical details, expression
+2. **Action:** what is happening in this single frame — the decisive moment captured
+3. **Environment:** location, weather, background elements, props
+4. **Art Style:** visual approach (photorealistic / cinematic 35mm / oil painting / cyberpunk / watercolor / synthwave / minimalism)
+5. **Lighting:** direction + time (Golden Hour / Blue Hour / Rembrandt / volumetric / overcast diffused), color temperature
+6. **Technical:** lens (85mm portrait bokeh / 50mm / macro / wide angle / drone aerial), depth of field, 4K/8K, film grain, effects
+
+REALISM BOOSTERS when photo/cinematic style:
+- Skin: "visible pores, subtle imperfections, natural texture variation"
+- Fabric: "realistic folds, detailed weave, visible fibers"
+- Metal/glass: "accurate reflections, subsurface depth"
+
+TEXT IN IMAGE: if text is needed — put it inside "quotation marks", specify font, and state exact placement.
+
+Output pure text (no JSON, no markdown fencing), 80–200 words, flowing naturally but keeping the 6 labeled layers. This text goes directly to the image model.`;
+
+async function buildStructuredImagePrompt(videoPrompt: string): Promise<string> {
+  if (!API_KEY) return videoPrompt.slice(0, 2000);
+  try {
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: TEXT_MODEL,
+      systemInstruction: IMAGE_PROMPT_SYSTEM,
+      generationConfig: { temperature: 0.5, maxOutputTokens: 600 },
+    });
+    const result = await model.generateContent(
+      `Convert this video prompt into a single-frame IMAGE prompt using the 6-layer structure. Choose the single most cinematic beat to capture as a still.\n\n=== VIDEO PROMPT ===\n${videoPrompt.slice(0, 3500)}\n\nReturn only the final image prompt text.`,
+    );
+    const u = result.response.usageMetadata;
+    await logUsage({
+      model: TEXT_MODEL,
+      operation: "image-prompt-build",
+      inputTokens: u?.promptTokenCount || 0,
+      outputTokens: u?.candidatesTokenCount || 0,
+    });
+    return result.response.text().trim();
+  } catch {
+    return videoPrompt.slice(0, 2000);
+  }
+}
 
 export async function generateImageFromPrompt(
   prompt: string,
@@ -22,11 +70,11 @@ export async function generateImageFromPrompt(
     } as any,
   });
 
+  const structured = await buildStructuredImagePrompt(prompt);
+
   let result;
   try {
-    result = await model.generateContent([
-      { text: `Generate a single photorealistic still image that captures this video prompt as a single frame:\n\n${prompt.slice(0, 3000)}` },
-    ]);
+    result = await model.generateContent([{ text: structured }]);
   } catch (e: any) {
     await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: String(e.message || e).slice(0, 200) } });
     throw e;
@@ -73,7 +121,7 @@ export async function generateImageFromPrompt(
         blobUrl: blob.url,
         model: MODEL,
         usdCost,
-        promptHead: prompt.slice(0, 200),
+        promptHead: structured.slice(0, 200),
       },
     }).catch(() => {});
   }
