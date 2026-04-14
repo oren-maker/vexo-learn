@@ -87,14 +87,14 @@ export default async function ConsciousnessPage() {
 
           <Section title="ציר זמן Snapshots" subtitle="כל עמודה = snapshot שעתי. גובה = כמות Knowledge Nodes">
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-              <div className="flex items-end gap-1 h-24">
+              <div className="flex items-end gap-1 h-24 justify-start">
                 {snapshots.slice().reverse().map((s) => {
                   const max = Math.max(...snapshots.map((x) => x.nodesCount), 1);
                   const h = Math.max(6, (s.nodesCount / max) * 90);
                   return (
                     <div
                       key={s.id}
-                      className="flex-1 bg-gradient-to-t from-cyan-500 to-purple-500 rounded-t cursor-help relative group"
+                      className="w-3 bg-gradient-to-t from-cyan-500 to-purple-500 rounded-t cursor-help shrink-0"
                       style={{ height: `${h}px` }}
                       title={`${new Date(s.takenAt).toLocaleString("he-IL")} · ${s.sourcesCount} sources · ${s.nodesCount} nodes · ${s.avgTechniques} avg tech`}
                     />
