@@ -5,6 +5,7 @@ import StatusBadge from "@/components/status-badge";
 import AutoRefresh from "@/components/auto-refresh";
 import SuggestSimilar from "@/components/suggest-similar";
 import DownloadPdfButton from "@/components/download-pdf-button";
+import RetryAnalysisButton from "@/components/retry-analysis-button";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +55,21 @@ export default async function SourceDetail({ params }: { params: { id: string } 
             <div className="text-[11px] text-slate-500 uppercase mb-1">פרומפט מקורי</div>
             <div className="text-sm text-slate-200 whitespace-pre-wrap">{source.prompt}</div>
           </div>
-          {source.error && (
-            <div className="mt-3 bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 text-sm">
-              ⚠ {source.error}
+          {source.status === "failed" && source.blobUrl && (
+            <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <div className="text-amber-300 text-sm font-semibold mb-1">⚠ הניתוח נכשל בריצה הראשונה</div>
+              <div className="text-xs text-slate-400 mb-3">
+                הוידאו כבר ב-Blob — לחץ &quot;נסה שוב&quot; כדי להריץ את הפייפליין מחדש (Gemini ואז Claude כ-fallback).
+                אם שוב נכשל — ה-quota של Gemini אוזל, נסה מאוחר יותר.
+              </div>
+              <RetryAnalysisButton sourceId={source.id} />
             </div>
+          )}
+          {source.error && (
+            <details className="mt-3 bg-red-500/5 border border-red-500/20 rounded-lg p-3 text-xs">
+              <summary className="text-red-300 cursor-pointer">פרטי שגיאה מהריצה הקודמת</summary>
+              <div className="mt-2 text-slate-400 break-words">{source.error}</div>
+            </details>
           )}
           {isLive && (
             <div className="mt-3 text-sm text-amber-300 flex items-center gap-2">
