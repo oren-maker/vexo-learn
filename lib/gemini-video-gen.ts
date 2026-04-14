@@ -11,8 +11,11 @@ const API_KEY = process.env.GEMINI_API_KEY;
 
 // VEO pricing (USD per second of generated video)
 const VEO_PRICING = {
-  "veo-3.0-generate-preview": 0.75,
-  "veo-3.0-fast-generate-preview": 0.40,
+  "veo-3.1-generate-preview": 0.75,
+  "veo-3.1-fast-generate-preview": 0.40,
+  "veo-3.1-lite-generate-preview": 0.15,
+  "veo-3.0-generate-001": 0.75,
+  "veo-3.0-fast-generate-001": 0.40,
 } as const;
 
 export type VeoModel = keyof typeof VEO_PRICING;
@@ -24,7 +27,7 @@ export async function generateVideoVEO3(
 ): Promise<{ blobUrl: string; usdCost: number; model: string; videoId: string }> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
-  const model = opts.model || "veo-3.0-fast-generate-preview";
+  const model = opts.model || "veo-3.1-fast-generate-preview";
   const duration = opts.durationSec || 8;
   const aspect = opts.aspectRatio || "16:9";
   const usdCost = VEO_PRICING[model] * duration;

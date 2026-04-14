@@ -41,14 +41,35 @@ export const PRICING = {
     outputPer1M: 15.00,
     imagePer: 0,
   },
-  "veo-3.0-generate-preview": {
+  "veo-3.1-generate-preview": {
     engine: "gemini-video" as const,
     inputPer1M: 0,
     outputPer1M: 0,
     imagePer: 0,
     secondPerUsd: 0.75,
   },
-  "veo-3.0-fast-generate-preview": {
+  "veo-3.1-fast-generate-preview": {
+    engine: "gemini-video" as const,
+    inputPer1M: 0,
+    outputPer1M: 0,
+    imagePer: 0,
+    secondPerUsd: 0.40,
+  },
+  "veo-3.1-lite-generate-preview": {
+    engine: "gemini-video" as const,
+    inputPer1M: 0,
+    outputPer1M: 0,
+    imagePer: 0,
+    secondPerUsd: 0.15,
+  },
+  "veo-3.0-generate-001": {
+    engine: "gemini-video" as const,
+    inputPer1M: 0,
+    outputPer1M: 0,
+    imagePer: 0,
+    secondPerUsd: 0.75,
+  },
+  "veo-3.0-fast-generate-001": {
     engine: "gemini-video" as const,
     inputPer1M: 0,
     outputPer1M: 0,

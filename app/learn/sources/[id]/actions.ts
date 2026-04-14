@@ -14,7 +14,7 @@ export async function generateVideoAction(
 ) {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) return { ok: false as const, error: "source not found" };
-  const model: VeoModel = opts.fast === false ? "veo-3.0-generate-preview" : "veo-3.0-fast-generate-preview";
+  const model: VeoModel = opts.fast === false ? "veo-3.1-generate-preview" : "veo-3.1-fast-generate-preview";
   const duration = opts.durationSec || 8;
   const estimate = estimateVeoCost(model, duration);
   try {
