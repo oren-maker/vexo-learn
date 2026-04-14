@@ -145,8 +145,8 @@ export default async function SourceDetail({ params }: { params: { id: string } 
       )}
 
       <div className="mt-6">
-        <GeneratedVideosGallery sourceId={source.id} />
         <GeneratedImagesGallery sourceId={source.id} />
+        <GeneratedVideosGallery sourceId={source.id} />
         <PromptLineage sourceId={source.id} />
         <SuggestSimilar sourceId={source.id} sourceTitle={source.title} />
       </div>
