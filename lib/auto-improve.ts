@@ -23,9 +23,10 @@ You receive:
 4. Style signatures that characterize each visual style
 
 Your job:
-- Decide if the prompt needs improvement. If it's already strong (>150 words, uses timecodes, rich in technical language, specific character/camera/lighting), return { keep: true }
-- Otherwise, produce an upgraded prompt that applies the corpus rules WITHOUT changing the core subject/scene
-- Be conservative: keep the user's creative intent, only add/tighten cinematic + technical layers
+- Look for concrete opportunities to apply the derived rules. Even strong prompts usually benefit from tightening one specific layer (lighting, lens, timecodes, sound).
+- Only return { keep: true } if the prompt is TRULY exemplary: >200 words AND timecodes AND explicit camera/lens AND lighting AND sound — all four dimensions present.
+- Otherwise produce an upgraded prompt that applies the corpus rules WITHOUT changing the core subject/scene.
+- Be conservative on intent: keep the creative subject, only add/tighten cinematic + technical layers.
 - Return ONLY JSON:
   { "keep": true }  // if no change needed
   OR
@@ -102,19 +103,29 @@ export async function runAutoImprovement(
     await tick("טוען תובנות", "חישוב derived rules + co-occurrence");
     const insights = await computeCorpusInsights();
 
-    await tick("בוחר פרומפטים רזים", "מסנן לפי techniques<4 ואורך<800");
-    // Target "stale" prompts: thin analysis + few techniques
+    await tick("בוחר פרומפטים רזים", "דירוג לפי richness score");
+    // Rank all prompts by weakness; take the N weakest. Gemini still decides keep:true if it's already good enough.
     const candidates = await prisma.learnSource.findMany({
       where: {
         status: "complete",
         analysis: { isNot: null },
       },
       include: { analysis: true },
-      take: maxCandidates * 3,
     });
-    const stale = candidates
-      .filter((s) => s.analysis && s.analysis.techniques.length < 4 && s.prompt.length < 800)
-      .slice(0, maxCandidates);
+    const scored = candidates
+      .filter((s) => s.analysis)
+      .map((s) => {
+        const techniques = s.analysis!.techniques.length;
+        const words = s.prompt.split(/\s+/).length;
+        const hasTimecodes = /\b\d{1,2}:\d{2}\b/.test(s.prompt) ? 1 : 0;
+        // Lower = weaker = better candidate for improvement
+        const score = techniques * 3 + Math.min(words / 40, 10) + hasTimecodes * 2;
+        return { s, score };
+      })
+      .sort((a, b) => a.score - b.score)
+      .slice(0, maxCandidates)
+      .map((x) => x.s);
+    const stale = scored;
 
     const rulesBlock = insights.derivedRules.map((r) => `- ${r}`).join("\n");
     const cooccurBlock = insights.cooccurrencePairs
