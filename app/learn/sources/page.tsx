@@ -7,21 +7,55 @@ import StarRating from "@/components/star-rating";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 50;
+
+// Any addedBy that indicates AI-origin (compose, variations, auto-improve, corpus generator, etc.)
+const AI_KEYWORDS = ["compose", "variation", "gemini", "corpus-generator", "corpus-", "auto-improve", "ai-", "claude-"];
+const MANUAL_KEYWORDS = ["manual", "bulk-import", "json-import", "csv-import", "upload"];
+
+function isAiAddedBy(addedBy: string | null): boolean {
+  if (!addedBy) return false;
+  const n = addedBy.toLowerCase();
+  return AI_KEYWORDS.some((k) => n.includes(k));
+}
+function isManualAddedBy(addedBy: string | null): boolean {
+  if (!addedBy) return false;
+  const n = addedBy.toLowerCase();
+  return MANUAL_KEYWORDS.some((k) => n === k || n.includes(k));
+}
 
 export default async function SourcesManager({
   searchParams,
 }: {
-  searchParams: { page?: string; filter?: string; minRating?: string; sort?: string };
+  searchParams: { page?: string; filter?: string; minRating?: string; sort?: string; category?: string };
 }) {
   const page = Math.max(1, Number(searchParams.page || 1));
   const filter = searchParams.filter || "all";
+  const category = searchParams.category || "";
   const minRating = Number(searchParams.minRating || 0);
   const sort = searchParams.sort || "createdAt";
   const skip = (page - 1) * PAGE_SIZE;
 
   const where: any = filter === "all" ? {} : { addedBy: { contains: filter, mode: "insensitive" as const } };
   if (minRating >= 1 && minRating <= 5) where.userRating = { gte: minRating };
+
+  // Category-based filter (AI / imported / manual / analyzed / with-video)
+  if (category === "ai") {
+    where.OR = AI_KEYWORDS.map((k) => ({ addedBy: { contains: k, mode: "insensitive" as const } }));
+  } else if (category === "manual") {
+    where.OR = MANUAL_KEYWORDS.map((k) => ({ addedBy: { contains: k, mode: "insensitive" as const } }));
+  } else if (category === "imported") {
+    where.AND = [
+      { NOT: { OR: AI_KEYWORDS.map((k) => ({ addedBy: { contains: k, mode: "insensitive" as const } })) } },
+      { NOT: { OR: MANUAL_KEYWORDS.map((k) => ({ addedBy: { contains: k, mode: "insensitive" as const } })) } },
+    ];
+  } else if (category === "analyzed") {
+    where.analysis = { is: {} };
+  } else if (category === "with-video") {
+    where.blobUrl = { not: null };
+  } else if (category === "all") {
+    // explicit "all" - no extra filter
+  }
 
   const orderBy: any = sort === "rating"
     ? [{ userRating: "desc" }, { createdAt: "desc" }]
@@ -41,7 +75,7 @@ export default async function SourcesManager({
       by: ["addedBy"],
       _count: true,
       orderBy: { _count: { addedBy: "desc" } },
-      take: 30,
+      take: 60,
     }),
     prisma.knowledgeNode.count(),
     prisma.learnSource.count({ where }),
@@ -54,10 +88,9 @@ export default async function SourcesManager({
   let aiGenerated = 0;
   let manual = 0;
   for (const row of byAddedBy) {
-    const name = (row.addedBy || "").toLowerCase();
     const n = row._count as unknown as number;
-    if (name.includes("compose") || name.includes("variation") || name.includes("gemini")) aiGenerated += n;
-    else if (name === "manual" || name === "bulk-import" || name === "json-import" || name === "csv-import") manual += n;
+    if (isAiAddedBy(row.addedBy)) aiGenerated += n;
+    else if (isManualAddedBy(row.addedBy)) manual += n;
     else imported += n; // seedance-sync, sora-ease, hr98w, etc.
   }
 
@@ -80,31 +113,57 @@ export default async function SourcesManager({
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <StatCard value={total} label="פרומפטים במאגר" accent="white" hint="סה״כ LearnSources" />
-        <StatCard value={withAnalysis} label="נותחו ללמידה" accent="cyan" hint={`${Math.round((withAnalysis / Math.max(total, 1)) * 100)}% מהמאגר`} />
-        <StatCard value={nodeCount} label="Knowledge Nodes" accent="purple" hint="זמינים ל-AI Director" />
-        <StatCard value={aiGenerated} label="נוצרו ב-AI" accent="emerald" hint="compose + variations" />
-        <StatCard value={imported} label="יובאו ממקורות" accent="amber" hint="Seedance, Sora…" />
+        <StatCard value={total} label="פרומפטים במאגר" accent="white" hint="סה״כ LearnSources" href="/learn/sources?category=all" active={category === "all" || (!category && filter === "all")} />
+        <StatCard value={withAnalysis} label="נותחו ללמידה" accent="cyan" hint={`${Math.round((withAnalysis / Math.max(total, 1)) * 100)}% מהמאגר`} href="/learn/sources?category=analyzed" active={category === "analyzed"} />
+        <StatCard value={nodeCount} label="Knowledge Nodes" accent="purple" hint="זמינים ל-AI Director" href="/learn/knowledge" />
+        <StatCard value={aiGenerated} label="נוצרו ב-AI" accent="emerald" hint="compose + variations + corpus" href="/learn/sources?category=ai" active={category === "ai"} />
+        <StatCard value={imported} label="יובאו ממקורות" accent="amber" hint="Seedance, Sora…" href="/learn/sources?category=imported" active={category === "imported"} />
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 mb-6">
-        <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">פילוח לפי מקור</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-slate-500 uppercase tracking-wider">פילוח לפי מקור (לחיצה מסננת)</div>
+          <div className="flex gap-2">
+            <Link href="/learn/sources?category=manual" className={`text-[11px] px-2 py-1 rounded border ${category === "manual" ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"}`}>
+              ✍️ ידני · {manual}
+            </Link>
+            <Link href="/learn/sources?category=with-video" className={`text-[11px] px-2 py-1 rounded border ${category === "with-video" ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"}`}>
+              🎬 עם וידאו · {withVideo}
+            </Link>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2">
-          {byAddedBy.slice(0, 12).map((row) => {
+          {byAddedBy.slice(0, 20).map((row) => {
             const name = row.addedBy || "(ללא מקור)";
+            const count = row._count as unknown as number;
+            const active = filter !== "all" && name.toLowerCase().includes(filter.toLowerCase());
             return (
-              <span key={name} className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
-                {prettyAddedBy(name)} <span className="text-slate-500">· {(row._count as unknown as number)}</span>
-              </span>
+              <Link
+                key={name}
+                href={`/learn/sources?filter=${encodeURIComponent(name)}`}
+                className={`text-xs px-3 py-1 rounded-full border transition ${
+                  active
+                    ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300"
+                    : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                }`}
+              >
+                {prettyAddedBy(name)} <span className="text-slate-500">· {count}</span>
+              </Link>
             );
           })}
         </div>
-        {withVideo > 0 && (
-          <div className="text-[11px] text-slate-500 mt-3">
-            🎬 {withVideo} מקורות כוללים קישור לוידאו דוגמה · ✍️ {manual} הועלו ידנית
-          </div>
-        )}
       </div>
+
+      {(category || filter !== "all" || minRating > 0) && (
+        <div className="flex items-center gap-2 mb-4 text-xs">
+          <span className="text-slate-500">סינון פעיל:</span>
+          {category && <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-1 rounded">{categoryLabel(category)}</span>}
+          {filter !== "all" && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-1 rounded">{prettyAddedBy(filter)}</span>}
+          {minRating > 0 && <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-1 rounded">{"★".repeat(minRating)}+</span>}
+          <Link href="/learn/sources" className="text-slate-400 hover:text-red-400 underline">נקה הכל</Link>
+          <span className="text-slate-500 mr-auto font-mono">{filteredTotal.toLocaleString()} תוצאות</span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
         <span className="text-slate-500">סנן לפי דירוג:</span>
@@ -186,13 +245,13 @@ export default async function SourcesManager({
             )}
           </tbody>
         </table>
-        <Pagination page={page} totalPages={totalPages} total={filteredTotal} pageSize={PAGE_SIZE} filter={filter} />
+        <Pagination page={page} totalPages={totalPages} total={filteredTotal} pageSize={PAGE_SIZE} filter={filter} category={category} minRating={minRating} sort={sort} />
       </div>
     </div>
   );
 }
 
-function Pagination({ page, totalPages, total, pageSize, filter }: { page: number; totalPages: number; total: number; pageSize: number; filter: string }) {
+function Pagination({ page, totalPages, total, pageSize, filter, category, minRating, sort }: { page: number; totalPages: number; total: number; pageSize: number; filter: string; category?: string; minRating?: number; sort?: string }) {
   if (totalPages <= 1) return null;
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
@@ -200,7 +259,10 @@ function Pagination({ page, totalPages, total, pageSize, filter }: { page: numbe
   function buildUrl(p: number) {
     const params = new URLSearchParams();
     if (p > 1) params.set("page", String(p));
-    if (filter !== "all") params.set("filter", filter);
+    if (filter && filter !== "all") params.set("filter", filter);
+    if (category) params.set("category", category);
+    if (minRating && minRating > 0) params.set("minRating", String(minRating));
+    if (sort && sort !== "createdAt") params.set("sort", sort);
     const q = params.toString();
     return `/learn/sources${q ? `?${q}` : ""}`;
   }
@@ -256,7 +318,7 @@ function PageLink({ href, label }: { href?: string; label: string }) {
   );
 }
 
-function StatCard({ value, label, accent, hint }: { value: number; label: string; accent: "white" | "cyan" | "purple" | "emerald" | "amber"; hint?: string }) {
+function StatCard({ value, label, accent, hint, href, active }: { value: number; label: string; accent: "white" | "cyan" | "purple" | "emerald" | "amber"; hint?: string; href?: string; active?: boolean }) {
   const colorMap = {
     white: "text-white",
     cyan: "text-cyan-300",
@@ -264,12 +326,23 @@ function StatCard({ value, label, accent, hint }: { value: number; label: string
     emerald: "text-emerald-300",
     amber: "text-amber-300",
   };
-  return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+  const body = (
+    <>
       <div className={`text-3xl font-black ${colorMap[accent]}`}>{value.toLocaleString()}</div>
       <div className="text-sm text-slate-300 mt-1">{label}</div>
       {hint && <div className="text-[11px] text-slate-500 mt-1">{hint}</div>}
-    </div>
+    </>
+  );
+  const cls = `bg-slate-900/60 border rounded-xl p-4 block transition ${
+    active ? "border-cyan-500/60 ring-1 ring-cyan-500/30" : "border-slate-800"
+  } ${href ? "hover:border-cyan-500/40 hover:bg-slate-900/80 cursor-pointer" : ""}`;
+  if (href) return <Link href={href} className={cls}>{body}</Link>;
+  return <div className={cls}>{body}</div>;
+}
+
+function categoryLabel(c: string): string {
+  return (
+    { ai: "נוצרו ב-AI", imported: "יובאו ממקורות", manual: "ידני", analyzed: "נותחו ללמידה", "with-video": "עם וידאו", all: "הכל" }[c] || c
   );
 }
 
