@@ -27,6 +27,8 @@ export default async function SourceDetail({ params }: { params: { id: string } 
     <div className="max-w-5xl mx-auto">
       {isLive && <AutoRefresh intervalMs={5000} />}
 
+      <PromptVersionsLog sourceId={source.id} />
+
       <div className="mb-5 flex items-center justify-between">
         <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
           ← חזרה למקורות

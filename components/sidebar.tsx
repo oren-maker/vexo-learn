@@ -35,8 +35,9 @@ const groups = [
   },
   {
     title: "ניהול",
-    icon: "💰",
+    icon: "🧠",
     items: [
+      { href: "/learn/consciousness", label: "תודעה", icon: "🧠" },
       { href: "/learn/tokens", label: "Tokens", icon: "💰" },
     ],
   },

@@ -7,6 +7,7 @@ import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { generateImageFromPrompt } from "@/lib/gemini-image";
 import { startVideoGeneration, runVideoGeneration, type VeoModel } from "@/lib/gemini-video-gen";
 import { adaptPromptForVEO } from "@/lib/adapt-for-veo";
+import { snapshotCurrentVersion } from "@/lib/prompt-versioning";
 import { revalidatePath } from "next/cache";
 import { waitUntil } from "@vercel/functions";
 
@@ -127,6 +128,9 @@ export async function retryAnalysisAction(sourceId: string) {
       return { ok: false as const, error: String(e.message || e).slice(0, 200) };
     }
   }
+
+  // Snapshot the current state BEFORE overwriting anything
+  await snapshotCurrentVersion(sourceId, "retry-analysis", "רטריי של ניתוח אחרי כשל");
 
   // Save analysis + knowledge nodes
   // Remove existing analysis if any
