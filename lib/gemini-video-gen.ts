@@ -23,6 +23,7 @@ async function updateProgress(videoId: string, data: {
   progressPct?: number;
   progressMessage?: string;
   operationId?: string | null;
+  error?: string;
 }) {
   try {
     await prisma.generatedVideo.update({ where: { id: videoId }, data });
