@@ -1,18 +1,22 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 
 const API_KEY = process.env.GEMINI_API_KEY;
-
-// Gemini 2.0 Flash — free tier, fast, JSON mode support.
 const MODEL = "gemini-flash-latest";
 
 export type ComposedPrompt = {
   prompt: string;
   rationale: string;
   similar: Array<{ id: string; title: string | null; externalId: string | null }>;
+  engine?: "gemini" | "claude";
 };
 
-// Pull top K reference prompts by keyword overlap with the user's brief.
+function isQuotaError(e: any): boolean {
+  const msg = String(e?.message || e || "").toLowerCase();
+  return msg.includes("429") || msg.includes("quota") || msg.includes("rate limit") || msg.includes("expired") || msg.includes("403");
+}
+
 async function pickReferences(brief: string, k = 5) {
   const STOP = new Set(["a", "an", "the", "of", "and", "or", "in", "to", "with", "for", "on", "at", "by", "from"]);
   const keywords = brief
@@ -52,8 +56,7 @@ async function pickReferences(brief: string, k = 5) {
   return scored.slice(0, k).map((s) => s.c);
 }
 
-function buildSystemPrompt() {
-  return `You are an expert AI video prompt engineer for Seedance 2.0, Sora, Kling, and Veo.
+const SYSTEM_PROMPT = `You are an expert AI video prompt engineer for Seedance 2.0, Sora, Kling, and Veo.
 
 Your job: compose ONE high-quality video generation prompt based on the user's brief, studying the provided reference prompts for:
 - Structure: [Style] / [Scene] / [Character] / [Shots] / [Camera] / [Effects] blocks, or timecoded beats [00:00-00:05]
@@ -71,60 +74,78 @@ RULES:
   "prompt": "the full prompt text...",
   "rationale": "one short paragraph in Hebrew explaining which techniques from the references you applied and why"
 }`;
+
+function buildUserMsg(brief: string, refs: Array<{ title: string | null; prompt: string }>): string {
+  const referenceBlock = refs
+    .map((r, i) => `--- REFERENCE ${i + 1}${r.title ? ` (${r.title})` : ""} ---\n${r.prompt.slice(0, 800).trim()}`)
+    .join("\n\n");
+  return `User's brief:\n${brief.trim()}\n\nReference prompts from Seedance 2.0 library (use for style, structure, and detail level; do NOT copy content):\n\n${referenceBlock}\n\nReturn JSON now.`;
 }
 
-export async function composePrompt(brief: string): Promise<ComposedPrompt> {
+function parseComposeJson(raw: string): { prompt: string; rationale: string } {
+  const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  const parsed = JSON.parse(cleaned);
+  if (!parsed.prompt) throw new Error("model did not return a prompt field");
+  return { prompt: String(parsed.prompt).trim(), rationale: String(parsed.rationale || "").trim() };
+}
+
+async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPrompt> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
-  if (!brief || brief.trim().length < 5) throw new Error("Brief קצר מדי");
-
-  const refs = await pickReferences(brief, 5);
-  if (refs.length === 0) throw new Error("אין מספיק פרומפטים ב-DB. הרץ סנכרון Seedance קודם.");
-
-  const referenceBlock = refs
-    .map((r, i) => {
-      const snippet = r.prompt.slice(0, 800).trim();
-      return `--- REFERENCE ${i + 1}${r.title ? ` (${r.title})` : ""} ---\n${snippet}`;
-    })
-    .join("\n\n");
-
-  const userMsg = `User's brief (what they want to generate):
-${brief.trim()}
-
-Reference prompts from the curated Seedance 2.0 library (use these for style, structure, and level of detail; do NOT copy content):
-
-${referenceBlock}
-
-Return the JSON object now.`;
-
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: MODEL,
-    systemInstruction: buildSystemPrompt(),
+    systemInstruction: SYSTEM_PROMPT,
     generationConfig: { responseMimeType: "application/json", temperature: 0.8 },
   });
-
-  const result = await model.generateContent(userMsg);
-  const text = result.response.text();
-
-  let parsed: { prompt?: string; rationale?: string };
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("Gemini החזיר JSON לא תקין");
-  }
-  if (!parsed.prompt) throw new Error("Gemini לא החזיר prompt");
-
+  const result = await model.generateContent(buildUserMsg(brief, refs));
+  const { prompt, rationale } = parseComposeJson(result.response.text());
   return {
-    prompt: String(parsed.prompt).trim(),
-    rationale: String(parsed.rationale || "").trim(),
+    prompt,
+    rationale,
     similar: refs.map((r) => ({ id: r.id, title: r.title, externalId: r.externalId })),
+    engine: "gemini",
   };
 }
 
-// Suggest N similar prompts to a given LearnSource (semantic similarity via Gemini)
-export async function suggestSimilar(sourceId: string, count = 3): Promise<ComposedPrompt[]> {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
+async function composeWithClaude(brief: string, refs: any[]): Promise<ComposedPrompt> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY חסר");
+  const client = new Anthropic({ apiKey: key });
+  const res = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: buildUserMsg(brief, refs) }],
+  });
+  const block = res.content.find((b) => b.type === "text");
+  if (!block || block.type !== "text") throw new Error("Claude returned no text");
+  const { prompt, rationale } = parseComposeJson(block.text);
+  return {
+    prompt,
+    rationale,
+    similar: refs.map((r) => ({ id: r.id, title: r.title, externalId: r.externalId })),
+    engine: "claude",
+  };
+}
 
+export async function composePrompt(brief: string): Promise<ComposedPrompt> {
+  if (!brief || brief.trim().length < 5) throw new Error("Brief קצר מדי");
+
+  const refs = await pickReferences(brief, 5);
+  if (refs.length === 0) throw new Error("אין מספיק פרומפטים ב-DB. הרץ סנכרון קודם.");
+
+  // Try Gemini first. On quota/403/429 → fall back to Claude.
+  if (API_KEY) {
+    try {
+      return await composeWithGemini(brief, refs);
+    } catch (e: any) {
+      if (!isQuotaError(e)) throw e;
+    }
+  }
+  return composeWithClaude(brief, refs);
+}
+
+export async function suggestSimilar(sourceId: string, count = 3): Promise<ComposedPrompt[]> {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) throw new Error("source not found");
 

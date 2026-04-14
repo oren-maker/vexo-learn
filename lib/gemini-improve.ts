@@ -1,8 +1,14 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
+
+function isQuotaError(e: any): boolean {
+  const msg = String(e?.message || e || "").toLowerCase();
+  return msg.includes("429") || msg.includes("quota") || msg.includes("rate limit") || msg.includes("expired") || msg.includes("403");
+}
 
 export type ImprovementResult = {
   scores: {
@@ -89,43 +95,60 @@ Output ONLY valid JSON matching this exact schema:
 }`;
 }
 
-export async function improvePrompt(userPrompt: string): Promise<ImprovementResult> {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
-  if (!userPrompt || userPrompt.trim().length < 10) throw new Error("פרומפט קצר מדי");
-
-  const refs = await pickReferences(userPrompt, 4);
+function buildUserMsg(userPrompt: string, refs: Array<{ title: string | null; prompt: string }>): string {
   const referenceBlock = refs
-    .map((r, i) => {
-      const snippet = r.prompt.slice(0, 700).trim();
-      return `--- REFERENCE ${i + 1}${r.title ? ` (${r.title})` : ""} ---\n${snippet}`;
-    })
+    .map((r, i) => `--- REFERENCE ${i + 1}${r.title ? ` (${r.title})` : ""} ---\n${r.prompt.slice(0, 700).trim()}`)
     .join("\n\n");
+  return `Evaluate and improve the following user prompt. Use the references only as style/structure examples (do not copy content).\n\n=== USER PROMPT ===\n${userPrompt.trim()}\n\n=== REFERENCES ===\n${referenceBlock}\n\nReturn the JSON now.`;
+}
 
-  const userMsg = `Evaluate and improve the following user prompt. Use the reference prompts only as style/structure examples (do not copy their content).
+function parseImproveJson(raw: string): any {
+  const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  return JSON.parse(cleaned);
+}
 
-=== USER PROMPT ===
-${userPrompt.trim()}
-
-=== REFERENCES ===
-${referenceBlock}
-
-Return the JSON now.`;
-
+async function improveWithGemini(userPrompt: string, refs: any[]) {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: buildSystem(),
     generationConfig: { responseMimeType: "application/json", temperature: 0.5 },
   });
+  const result = await model.generateContent(buildUserMsg(userPrompt, refs));
+  return parseImproveJson(result.response.text());
+}
 
-  const result = await model.generateContent(userMsg);
-  const text = result.response.text();
+async function improveWithClaude(userPrompt: string, refs: any[]) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY חסר");
+  const client = new Anthropic({ apiKey: key });
+  const res = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    system: buildSystem(),
+    messages: [{ role: "user", content: buildUserMsg(userPrompt, refs) }],
+  });
+  const block = res.content.find((b) => b.type === "text");
+  if (!block || block.type !== "text") throw new Error("Claude returned no text");
+  return parseImproveJson(block.text);
+}
+
+export async function improvePrompt(userPrompt: string): Promise<ImprovementResult> {
+  if (!userPrompt || userPrompt.trim().length < 10) throw new Error("פרומפט קצר מדי");
+
+  const refs = await pickReferences(userPrompt, 4);
 
   let parsed: any;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("Gemini החזיר JSON לא תקין");
+  if (API_KEY) {
+    try {
+      parsed = await improveWithGemini(userPrompt, refs);
+    } catch (e: any) {
+      if (!isQuotaError(e)) throw e;
+      parsed = await improveWithClaude(userPrompt, refs);
+    }
+  } else {
+    parsed = await improveWithClaude(userPrompt, refs);
   }
 
   return {

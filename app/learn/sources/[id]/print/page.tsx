@@ -51,7 +51,7 @@ export default async function PrintPage({
       `}</style>
 
       <div className="no-print" style={{ marginBottom: 20, padding: 12, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, fontSize: "11pt" }}>
-        💡 דף מוכן להדפסה / שמירה כ-PDF. לחץ <b>Ctrl+P</b> (או ⌘P ב-Mac) ובחר "Save as PDF".
+        💡 דף מוכן להדפסה / שמירה כ-PDF. לחץ <b>Ctrl+P</b> (או ⌘P ב-Mac) ובחר &quot;Save as PDF&quot;.
         {auto && " — הדיאלוג יופיע אוטומטית."}
       </div>
 
