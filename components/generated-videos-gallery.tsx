@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import DeleteFailedVideoButton from "./delete-failed-video-button";
 
 export default async function GeneratedVideosGallery({ sourceId }: { sourceId: string }) {
   const videos = await prisma.generatedVideo.findMany({
@@ -29,9 +30,10 @@ export default async function GeneratedVideosGallery({ sourceId }: { sourceId: s
                   <span className="animate-pulse">🎬 יוצר... (1-3 דקות)</span>
                 </div>
               ) : (
-                <div className="aspect-video flex flex-col items-center justify-center text-xs text-red-300 p-4">
+                <div className="aspect-video flex flex-col items-center justify-center text-xs text-red-300 p-4 gap-2">
                   <div>❌ {v.status}</div>
-                  {v.error && <div className="mt-1 text-slate-500 text-[10px] line-clamp-3">{v.error}</div>}
+                  {v.error && <div className="text-slate-500 text-[10px] line-clamp-3 text-center">{v.error}</div>}
+                  <DeleteFailedVideoButton videoId={v.id} sourceId={sourceId} />
                 </div>
               )}
               <div className="absolute top-2 left-2 right-2 flex items-start justify-between pointer-events-none">

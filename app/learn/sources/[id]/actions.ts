@@ -8,6 +8,16 @@ import { generateImageFromPrompt } from "@/lib/gemini-image";
 import { generateVideoVEO3, estimateVeoCost, type VeoModel } from "@/lib/gemini-video-gen";
 import { revalidatePath } from "next/cache";
 
+export async function deleteVideoAction(videoId: string, sourceId: string) {
+  try {
+    await prisma.generatedVideo.delete({ where: { id: videoId } });
+    revalidatePath(`/learn/sources/${sourceId}`);
+    return { ok: true as const };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e).slice(0, 200) };
+  }
+}
+
 export async function generateVideoAction(
   sourceId: string,
   opts: { fast?: boolean; durationSec?: number; aspectRatio?: "16:9" | "9:16" } = {},
