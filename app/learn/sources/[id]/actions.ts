@@ -6,8 +6,20 @@ import { extractPromptFromVideo } from "@/lib/gemini-prompt-from-video";
 import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { generateImageFromPrompt } from "@/lib/gemini-image";
 import { startVideoGeneration, runVideoGeneration, type VeoModel } from "@/lib/gemini-video-gen";
+import { adaptPromptForVEO } from "@/lib/adapt-for-veo";
 import { revalidatePath } from "next/cache";
 import { waitUntil } from "@vercel/functions";
+
+export async function adaptPromptForVEOAction(sourceId: string) {
+  const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
+  if (!source) return { ok: false as const, error: "source not found" };
+  try {
+    const adapted = await adaptPromptForVEO(source.prompt, sourceId);
+    return { ok: true as const, adapted, original: source.prompt };
+  } catch (e: any) {
+    return { ok: false as const, error: String(e.message || e).slice(0, 200) };
+  }
+}
 
 export async function deleteVideoAction(videoId: string, sourceId: string) {
   try {
@@ -21,20 +33,20 @@ export async function deleteVideoAction(videoId: string, sourceId: string) {
 
 export async function generateVideoAction(
   sourceId: string,
-  opts: { fast?: boolean; durationSec?: number; aspectRatio?: "16:9" | "9:16" } = {},
+  opts: { fast?: boolean; durationSec?: number; aspectRatio?: "16:9" | "9:16"; customPrompt?: string } = {},
 ) {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) return { ok: false as const, error: "source not found" };
   const model: VeoModel = opts.fast === false ? "veo-3.1-generate-preview" : "veo-3.1-fast-generate-preview";
   const duration = opts.durationSec || 8;
+  const finalPrompt = opts.customPrompt?.trim() || (await adaptPromptForVEO(source.prompt, sourceId));
   try {
-    const videoId = await startVideoGeneration(source.prompt, sourceId, {
+    const videoId = await startVideoGeneration(finalPrompt, sourceId, {
       model,
       durationSec: duration,
       aspectRatio: opts.aspectRatio || "16:9",
     });
-    // Fire-and-forget: the function stays alive via waitUntil while the client polls.
-    waitUntil(runVideoGeneration(videoId, source.prompt).catch(() => {}));
+    waitUntil(runVideoGeneration(videoId, finalPrompt).catch(() => {}));
     return { ok: true as const, videoId };
   } catch (e: any) {
     return { ok: false as const, error: String(e.message || e).slice(0, 300) };
