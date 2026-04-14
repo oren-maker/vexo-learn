@@ -3,8 +3,14 @@
 import { put } from "@vercel/blob";
 import { extractInstagram } from "@/lib/instagram";
 import { extractPromptFromVideo } from "@/lib/gemini-prompt-from-video";
+import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+
+function isQuotaError(e: any): boolean {
+  const msg = String(e?.message || e || "").toLowerCase();
+  return msg.includes("429") || msg.includes("quota") || msg.includes("rate limit") || msg.includes("expired");
+}
 
 // Full pipeline for an Instagram / TikTok / other social video URL:
 // 1. Extract direct MP4 URL + caption + thumbnail
@@ -61,9 +67,34 @@ export async function ingestSocialVideoAction(rawUrl: string) {
       },
     });
 
-    // Step 4: Gemini — extract prompt, translate caption, pull metadata
+    // Step 4: Gemini video analysis → Claude fallback (caption + thumbnail)
+    let analyzed;
+    let analysisEngine = "gemini-video";
     try {
-      const analyzed = await extractPromptFromVideo(blobUrl, ig.caption);
+      analyzed = await extractPromptFromVideo(blobUrl, ig.caption);
+    } catch (e: any) {
+      if (isQuotaError(e)) {
+        // Fall back to Claude (caption + thumbnail image)
+        try {
+          analyzed = await generatePromptWithClaude(ig.caption, ig.thumbnail);
+          analysisEngine = "claude-fallback";
+        } catch (e2: any) {
+          await prisma.learnSource.update({
+            where: { id: source.id },
+            data: { status: "failed", error: `Gemini quota + Claude fallback: ${String(e2.message || e2).slice(0, 300)}` },
+          });
+          return { ok: false as const, error: `שני המנועים נכשלו. Gemini: quota. Claude: ${String(e2.message || e2).slice(0, 150)}` };
+        }
+      } else {
+        await prisma.learnSource.update({
+          where: { id: source.id },
+          data: { status: "failed", error: String(e.message || e).slice(0, 500) },
+        });
+        return { ok: false as const, error: `ניתוח Gemini נכשל: ${String(e.message || e).slice(0, 200)}` };
+      }
+    }
+
+    try {
 
       // Save analysis + knowledge nodes
       const analysis = await prisma.videoAnalysis.create({
@@ -78,7 +109,7 @@ export async function ingestSocialVideoAction(rawUrl: string) {
           difficulty: null,
           insights: [],
           promptAlignment: null,
-          rawGemini: JSON.stringify(analyzed),
+          rawGemini: JSON.stringify({ engine: analysisEngine, ...analyzed }),
         },
       });
       const nodes = analyzed.techniques.map((t) => ({
@@ -116,13 +147,14 @@ export async function ingestSocialVideoAction(rawUrl: string) {
         mood: analyzed.mood,
         thumbnail: ig.thumbnail,
         videoUrl: blobUrl,
+        engine: analysisEngine,
       };
     } catch (e: any) {
       await prisma.learnSource.update({
         where: { id: source.id },
         data: { status: "failed", error: String(e.message || e).slice(0, 500) },
       });
-      return { ok: false as const, error: `ניתוח Gemini נכשל: ${String(e.message || e).slice(0, 200)}` };
+      return { ok: false as const, error: `שמירה נכשלה: ${String(e.message || e).slice(0, 200)}` };
     }
   } catch (e: any) {
     return { ok: false as const, error: String(e.message || e).slice(0, 300) };
