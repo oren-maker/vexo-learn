@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import EditTimeline from "@/components/video/edit-timeline";
 import MergeEditLog from "@/components/video/merge-edit-log";
+import ClipReorder from "@/components/video/clip-reorder";
 
 export const dynamic = "force-dynamic";
 
@@ -96,22 +97,15 @@ export default async function JobResultPage({ params }: { params: { id: string }
       </section>
 
       <section>
-        <h2 className="text-lg font-bold text-white mb-3">קליפים בפרויקט ({job.clips.length})</h2>
-        <ul className="space-y-2">
-          {job.clips.map((c, i) => (
-            <li key={c.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-sm flex items-center gap-3">
-              <span className="text-cyan-300 font-mono w-6">{i + 1}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-white truncate">{c.filename}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  {c.durationSec ? `${c.durationSec.toFixed(1)}s` : ""}
-                  {c.trimStart != null && c.trimEnd != null && ` · trim ${c.trimStart}→${c.trimEnd}`}
-                  {c.transition && ` · ${c.transition} ${c.transitionDur}s →`}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <ClipReorder
+          jobId={job.id}
+          initialClips={job.clips.map((c) => ({
+            id: c.id,
+            filename: c.filename,
+            durationSec: c.durationSec,
+            order: c.order,
+          }))}
+        />
       </section>
     </div>
   );
