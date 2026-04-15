@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const MODELS = ["gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash"];
+const MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 async function callGeminiWithFallback(system: string, history: any[]): Promise<{ reply: string; usage: any; model: string }> {
   let lastErr: any = null;
@@ -21,7 +21,7 @@ async function callGeminiWithFallback(system: string, history: any[]): Promise<{
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: history,
-            generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+            generationConfig: { temperature: 1.0, topP: 0.95, maxOutputTokens: 1024 },
           }),
           signal: AbortSignal.timeout(45_000),
         });
@@ -148,7 +148,13 @@ ${pastChatsText}
 כללים כלליים:
 - ענה קצר ופרקטי (2-4 משפטים), אלא אם התבקשת להאריך.
 - אם אתה לא בטוח — אמור "אני לא יודע" במקום להמציא.
-- אם אורן מזכיר משהו משיחה קודמת — התייחס אליו.`;
+- אם אורן מזכיר משהו משיחה קודמת — התייחס אליו.
+
+🎨 גיוון — חובה:
+- לעולם אל תחזור על אותם רעיונות/תיאורים/מיקומים/דמויות משיחות קודמות. עיין בזיכרון הארוך ובחר **כיוון אחר**.
+- אם יצרת "בלש נואר בעיר גשומה" — הפעם תציע "רקדן בלט סקנדינבי ביער מושלג" או כיוון שונה לחלוטין.
+- כל תגובה צריכה להרגיש טרייה. אם אורן נותן נושא כללי — תפתיע אותו עם זווית יצירתית שלא ראה ממך עדיין.
+- אם אורן ביקש פרומפט חדש ואתה בטעות כתבת אותו בצ'אט — שגיאה! חובה להשתמש ב-\`compose_prompt\` action.`;
 }
 
 export async function POST(req: NextRequest) {
