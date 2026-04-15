@@ -10,7 +10,7 @@ export default async function BrainPage() {
     prisma.dailyBrainCache.findMany({ orderBy: { date: "desc" }, take: 14 }),
     prisma.dailyBrainCache.count(),
     prisma.brainChat.count(),
-    prisma.brainUpgradeRequest.count({ where: { status: "pending" } }),
+    prisma.brainUpgradeRequest.count({ where: { status: { in: ["pending", "in-progress"] } } }),
   ]);
   const today = caches[0];
 

@@ -3,13 +3,24 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function BrainUpgradesPage() {
-  const upgrades = await prisma.brainUpgradeRequest.findMany({
-    orderBy: [{ status: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
-    take: 200,
-  });
-  const pending = upgrades.filter((u) => u.status === "pending").length;
-  const done = upgrades.filter((u) => u.status === "done").length;
+export default async function BrainUpgradesPage({ searchParams }: { searchParams: { archive?: string } }) {
+  const isArchive = searchParams.archive === "1";
+  const activeStatuses = ["pending", "in-progress"];
+  const archiveStatuses = ["done", "rejected"];
+  const whereStatuses = isArchive ? archiveStatuses : activeStatuses;
+
+  const [upgrades, counts] = await Promise.all([
+    prisma.brainUpgradeRequest.findMany({
+      where: { status: { in: whereStatuses } },
+      orderBy: [{ status: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
+      take: 200,
+    }),
+    prisma.brainUpgradeRequest.groupBy({ by: ["status"], _count: true }),
+  ]);
+  const byStatus: Record<string, number> = {};
+  counts.forEach((c) => { byStatus[c.status] = c._count as any; });
+  const activeCount = (byStatus.pending || 0) + (byStatus["in-progress"] || 0);
+  const archiveCount = (byStatus.done || 0) + (byStatus.rejected || 0);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -18,22 +29,38 @@ export default async function BrainUpgradesPage() {
           <Link href="/learn/brain" className="text-xs text-slate-400 hover:text-cyan-400">← חזרה למוח</Link>
           <h1 className="text-3xl font-bold text-white mt-1">🔧 בקשות שדרוג</h1>
           <p className="text-sm text-slate-400 mt-1">
-            הוראות ששלחת למוח נשמרות כאן. Claude מיישם אותן בשדרוגים הבאים של המערכת.
+            {isArchive ? "ארכיון: שדרוגים שהושלמו או נדחו" : "פעילים: ממתינים + בעבודה. Claude מיישם אותם בשדרוגים הבאים."}
           </p>
         </div>
-        <div className="flex gap-3 text-xs">
-          <span className="bg-amber-500/15 text-amber-300 border border-amber-500/40 px-3 py-1 rounded">
-            ⏳ ממתין: {pending}
-          </span>
-          <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded">
-            ✓ הושלם: {done}
-          </span>
+        <div className="flex gap-2 text-xs">
+          <Link
+            href="/learn/brain/upgrades"
+            className={`px-3 py-1.5 rounded border font-semibold ${!isArchive ? "bg-amber-500/20 border-amber-500/50 text-amber-300" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"}`}
+          >
+            🔧 פעילים ({activeCount})
+          </Link>
+          <Link
+            href="/learn/brain/upgrades?archive=1"
+            className={`px-3 py-1.5 rounded border ${isArchive ? "bg-slate-700 border-slate-500 text-slate-100" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"}`}
+          >
+            📦 ארכיון ({archiveCount})
+          </Link>
         </div>
       </header>
 
+      {!isArchive && (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <StatBox value={byStatus.pending || 0} label="⏳ ממתינים" color="amber" />
+          <StatBox value={byStatus["in-progress"] || 0} label="🔄 בעבודה" color="cyan" />
+        </div>
+      )}
+
       {upgrades.length === 0 ? (
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-10 text-center text-sm text-slate-400">
-          עדיין אין בקשות שדרוג. דבר עם המוח ב-<Link href="/learn/brain/chat" className="text-cyan-400 underline">/learn/brain/chat</Link> ותן הוראות.
+          {isArchive
+            ? "הארכיון ריק."
+            : <>אין שדרוגים פעילים. דבר עם המוח ב-<Link href="/learn/brain/chat" className="text-cyan-400 underline">/learn/brain/chat</Link> ותן הוראות.</>
+          }
         </div>
       ) : (
         <div className="space-y-2">
@@ -44,7 +71,7 @@ export default async function BrainUpgradesPage() {
                 u.status === "pending" ? "bg-amber-500/5 border-amber-500/30" :
                 u.status === "in-progress" ? "bg-cyan-500/5 border-cyan-500/30" :
                 u.status === "done" ? "bg-emerald-500/5 border-emerald-500/30 opacity-70" :
-                "bg-slate-900/60 border-slate-800"
+                "bg-slate-900/60 border-slate-800 opacity-60"
               }`}
             >
               <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
@@ -76,6 +103,16 @@ export default async function BrainUpgradesPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatBox({ value, label, color }: { value: number; label: string; color: "amber" | "cyan" }) {
+  const c = color === "amber" ? "text-amber-300" : "text-cyan-300";
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+      <div className={`text-3xl font-black ${c}`}>{value.toLocaleString()}</div>
+      <div className="text-sm text-slate-300 mt-1">{label}</div>
     </div>
   );
 }
