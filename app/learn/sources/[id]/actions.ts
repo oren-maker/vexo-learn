@@ -131,7 +131,23 @@ export async function retryAnalysisAction(sourceId: string) {
   }
 
   // Snapshot the current state BEFORE overwriting anything
-  await snapshotCurrentVersion(sourceId, "retry-analysis", "רטריי של ניתוח אחרי כשל");
+  const retryVersion = await snapshotCurrentVersion(sourceId, "retry-analysis", "רטריי של ניתוח אחרי כשל");
+  const retryVersionRow = await prisma.promptVersion.findFirst({
+    where: { sourceId, version: retryVersion },
+    select: { id: true },
+  });
+  if (retryVersionRow) {
+    await Promise.all([
+      prisma.generatedVideo.updateMany({
+        where: { sourceId, promptVersionId: null },
+        data: { promptVersionId: retryVersionRow.id },
+      }),
+      prisma.generatedImage.updateMany({
+        where: { sourceId, promptVersionId: null },
+        data: { promptVersionId: retryVersionRow.id },
+      }),
+    ]);
+  }
 
   // Save analysis + knowledge nodes
   // Remove existing analysis if any
@@ -199,6 +215,24 @@ export async function regenerateFromUrl(sourceId: string, jobId?: string): Promi
   await tick("שומר גרסה קודמת", `שומר את הפרומפט הנוכחי כ-snapshot`, 0, 4);
   const oldPrompt = source.prompt;
   const newVersion = await snapshotCurrentVersion(sourceId, "regenerate-from-url", "regenerated from source URL");
+  // Find the freshly-created PromptVersion id so we can link existing media to it.
+  const freshVersionRow = await prisma.promptVersion.findFirst({
+    where: { sourceId, version: newVersion },
+    select: { id: true },
+  });
+  if (freshVersionRow) {
+    // Tag every existing video/image as "belonging to the previous prompt version"
+    await Promise.all([
+      prisma.generatedVideo.updateMany({
+        where: { sourceId, promptVersionId: null },
+        data: { promptVersionId: freshVersionRow.id },
+      }),
+      prisma.generatedImage.updateMany({
+        where: { sourceId, promptVersionId: null },
+        data: { promptVersionId: freshVersionRow.id },
+      }),
+    ]);
+  }
 
   await tick("מושך כיתוב + תמונה מהמקור", source.url, 1, 4);
   let caption: string | null = null;

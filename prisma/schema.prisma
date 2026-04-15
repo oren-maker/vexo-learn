@@ -116,9 +116,11 @@ model GeneratedImage {
   model      String
   usdCost    Float    @default(0)
   promptHead String   @db.Text
+  promptVersionId String?  // null = generated from CURRENT prompt; non-null = generated from this older PromptVersion
   createdAt  DateTime @default(now())
 
   @@index([sourceId])
+  @@index([promptVersionId])
   @@index([createdAt])
 }
 
@@ -201,6 +203,7 @@ model GeneratedVideo {
   progressMessage String?
   operationId     String?
   error           String?
+  promptVersionId String?  // null = generated from CURRENT prompt; non-null = older PromptVersion this video belongs to
   startedAt       DateTime @default(now())
   completedAt     DateTime?
   createdAt       DateTime @default(now())
@@ -209,6 +212,7 @@ model GeneratedVideo {
   @@index([sourceId])
   @@index([status])
   @@index([createdAt])
+  @@index([promptVersionId])
 }
 
 // ----- Video Merger (standalone module) -----
