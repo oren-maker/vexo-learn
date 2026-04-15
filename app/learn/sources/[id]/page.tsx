@@ -30,21 +30,10 @@ export default async function SourceDetail({ params }: { params: { id: string } 
     <div className="max-w-5xl mx-auto">
       {isLive && <AutoRefresh intervalMs={5000} />}
 
-      <PromptVersionsLog sourceId={source.id} />
-
       <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
-            ← חזרה למקורות
-          </Link>
-          <Link
-            href={`/learn/sources/${source.id}/logs`}
-            className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded-lg"
-          >
-            📂 לוגים של הפרומפט
-          </Link>
-          <RegenerateFromUrlButton sourceId={source.id} hasUrl={!!source.url} />
-        </div>
+        <Link href="/learn/sources" className="text-xs text-slate-400 hover:text-cyan-400">
+          ← חזרה למקורות
+        </Link>
         <div className="flex gap-2 flex-wrap">
           <GenerateImageButton sourceId={source.id} />
           <GenerateVideoButton sourceId={source.id} />
@@ -60,6 +49,16 @@ export default async function SourceDetail({ params }: { params: { id: string } 
           ) : (
             <div className="aspect-video bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center text-5xl text-slate-700">🎬</div>
           )}
+          {/* Prompt-management buttons under the thumbnail */}
+          <div className="mt-3 flex flex-col gap-2 items-stretch">
+            <Link
+              href={`/learn/sources/${source.id}/logs`}
+              className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded-lg text-center"
+            >
+              📂 לוגים של הפרומפט
+            </Link>
+            <RegenerateFromUrlButton sourceId={source.id} hasUrl={!!source.url} />
+          </div>
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -78,6 +77,9 @@ export default async function SourceDetail({ params }: { params: { id: string } 
           <div className="mt-4 bg-slate-900/60 border border-slate-800 rounded-lg p-3">
             <div className="text-[11px] text-slate-500 uppercase mb-1">פרומפט מקורי</div>
             <div className="text-sm text-slate-200 whitespace-pre-wrap">{source.prompt}</div>
+          </div>
+          <div className="mt-4">
+            <PromptVersionsLog sourceId={source.id} />
           </div>
           {source.status === "failed" && source.blobUrl && (
             <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">

@@ -38,7 +38,10 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
 
   if (!hasUrl) {
     return (
-      <span title="אין URL מקור — אי אפשר לשחזר" className="text-xs text-slate-600 bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-lg cursor-not-allowed">
+      <span
+        title="אין URL מקור — אי אפשר לשחזר"
+        className="text-xs text-slate-600 bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-lg cursor-not-allowed text-center"
+      >
         🔁 צור פרומפט מחדש מהקישור
       </span>
     );
@@ -47,11 +50,11 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
   const pending = starting || !!jobId;
 
   return (
-    <span className="inline-flex flex-col items-stretch gap-2">
+    <div className="flex flex-col items-stretch gap-2">
       <button
         onClick={run}
         disabled={pending}
-        className="text-xs bg-gradient-to-l from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap"
+        className="text-xs bg-gradient-to-l from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-lg disabled:opacity-50 text-center"
       >
         {pending ? "🔄 ממתין…" : "🔁 צור פרומפט מחדש מהקישור"}
       </button>
@@ -70,6 +73,6 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
       ) : err ? (
         <span className="text-[11px] text-red-400">⚠ {err}</span>
       ) : null}
-    </span>
+    </div>
   );
 }
