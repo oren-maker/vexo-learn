@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { adminHeaders } from "@/lib/admin-key";
 
 export default function StarRating({
   sourceId,
@@ -29,7 +30,7 @@ export default function StarRating({
       try {
         const res = await fetch("/api/learn/rate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: adminHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ sourceId, rating: newRating }),
         });
         const j = await res.json();

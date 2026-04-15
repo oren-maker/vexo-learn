@@ -6,10 +6,11 @@ import ConnectedSystemsBanner from "@/components/brain/connected-systems-banner"
 export const dynamic = "force-dynamic";
 
 export default async function BrainPage() {
-  const [caches, totalCacheCount, totalChatCount] = await Promise.all([
+  const [caches, totalCacheCount, totalChatCount, pendingUpgrades] = await Promise.all([
     prisma.dailyBrainCache.findMany({ orderBy: { date: "desc" }, take: 14 }),
     prisma.dailyBrainCache.count(),
     prisma.brainChat.count(),
+    prisma.brainUpgradeRequest.count({ where: { status: "pending" } }),
   ]);
   const today = caches[0];
 
@@ -34,6 +35,14 @@ export default async function BrainPage() {
             className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded text-center"
           >
             📜 לוגי המוח ({totalCacheCount})
+          </Link>
+          <Link
+            href="/learn/brain/upgrades"
+            className={`text-xs border px-3 py-1.5 rounded text-center ${
+              pendingUpgrades > 0 ? "bg-amber-500/15 text-amber-300 border-amber-500/40 font-semibold" : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+            }`}
+          >
+            🔧 שדרוגים {pendingUpgrades > 0 && `(${pendingUpgrades})`}
           </Link>
           <BrainRefreshButton />
         </div>

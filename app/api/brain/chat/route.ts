@@ -104,7 +104,7 @@ async function buildSystemPrompt(currentChatId?: string): Promise<string> {
 
 6 סוגי פעולות שאתה יכול לבצע:
 1. \`compose_prompt\` — יצירת **פרומפט וידאו חדש** מתיאור/נושא. אם אורן אומר "תייצר פרומפט" / "צור פרומפט" / "תעשה פרומפט על X" → זו הפעולה הנכונה. פרמטרים: brief (תיאור הנושא)
-2. \`generate_video\` — יצירת **סרטון VEO 3.1** מפרומפט קיים (LearnSource). אם אורן אומר "תייצר סרטון" / "תעשה וידאו" / "הפוך לסרטון" → זו הפעולה. פרמטרים: sourceId (חובה), durationSec (אופציונלי, ברירת מחדל 8), aspectRatio (אופציונלי, "16:9" או "9:16")
+2. \`generate_video\` — יצירת **סרטון VEO 3.1** מפרומפט קיים (LearnSource). **רק** אם אורן אומר במפורש "תייצר סרטון" / "תעשה וידאו" / "הפוך לסרטון". אל תציע זאת אוטומטית אחרי compose_prompt. פרמטרים: sourceId (חובה), durationSec (אופציונלי, ברירת מחדל 8), aspectRatio (אופציונלי, "16:9" או "9:16")
 3. \`import_guide_url\` — ייבוא URL לאתר רגיל (wikiHow, blog, docs) ל-**מדריך** חדש. פרמטרים: url, lang
 4. \`ai_guide\` — יצירת **מדריך** מנושא (לא פרומפט!). פרמטרים: topic, lang
 5. \`import_instagram_guide\` — Instagram/Reel → מדריך. פרמטרים: url, lang
@@ -190,9 +190,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await prisma.brainMessage.create({
+    const userMsg = await prisma.brainMessage.create({
       data: { chatId: chat.id, role: "user", content: message },
     });
+
+    // Auto-detect instructional messages (upgrade requests) and save them for Claude to review
+    const instructionPatterns = /תעשה ש|תגדיר ש|שיהיה|שימור|תזכור ש|שדרוג|תוסיף ש|צריך ש|חשוב ש|תדאג ש|שיופיע|שהמוח|תשדרג/;
+    if (instructionPatterns.test(message) && message.length > 15) {
+      try {
+        await prisma.brainUpgradeRequest.create({
+          data: {
+            chatId: chat.id,
+            messageId: userMsg.id,
+            instruction: message.slice(0, 2000),
+            status: "pending",
+            priority: 3,
+          },
+        });
+      } catch {}
+    }
 
     let system = await buildSystemPrompt(chat.id);
     // Deterministic intent hint — flash-lite frequently confuses "פרומפט" with "מדריך"

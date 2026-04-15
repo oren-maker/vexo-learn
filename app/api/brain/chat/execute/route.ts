@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       const sections = ["VISUAL STYLE", "FILM STOCK", "COLOR", "LIGHTING", "CHARACTER", "AUDIO", "TIMELINE", "QUALITY"]
         .filter((s) => composed.prompt.toUpperCase().includes(s));
       const preview = composed.prompt.slice(0, 600);
-      resultText = `✅ יצרתי פרומפט מלא: ${wordCount} מילים · ${sections.length}/8 סעיפים.\n\n📄 תצוגה מקדימה:\n${preview}${composed.prompt.length > 600 ? "..." : ""}\n\n💡 ${composed.rationale?.slice(0, 300) || ""}\n\n🎬 רוצה לייצר ממנו סרטון VEO? אמור "תייצר סרטון" ואני אשלח action.\n\`\`\`action\n${JSON.stringify({ type: "generate_video", sourceId: source.id })}\n\`\`\``;
+      resultText = `✅ יצרתי פרומפט מלא: ${wordCount} מילים · ${sections.length}/8 סעיפים.\n\n📄 תצוגה מקדימה:\n${preview}${composed.prompt.length > 600 ? "..." : ""}\n\n💡 ${composed.rationale?.slice(0, 300) || ""}`;
     } else if (action.type === "generate_video") {
       const sourceId = String(action.sourceId || "").trim();
       if (!sourceId) return NextResponse.json({ error: "sourceId required" }, { status: 400 });

@@ -452,6 +452,22 @@ model BrainChat {
   @@index([summarizedAt])
 }
 
+model BrainUpgradeRequest {
+  id          String   @id @default(cuid())
+  chatId      String?
+  messageId   String?                         // the original user message id
+  instruction String   @db.Text               // what the user said to improve
+  context     String?  @db.Text               // brain's interpretation of WHY
+  status      String   @default("pending")    // pending | in-progress | done | rejected
+  priority    Int      @default(3)            // 1 (high) - 5 (low)
+  claudeNotes String?  @db.Text               // Claude's notes after implementing
+  implementedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 model BrainMessage {
   id        String   @id @default(cuid())
   chatId    String
