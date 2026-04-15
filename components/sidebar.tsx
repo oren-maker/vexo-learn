@@ -40,6 +40,7 @@ const groups = [
     items: [
       { href: "/video", label: "סקירה", icon: "🎞️" },
       { href: "/video/merge", label: "מיזוג קליפים", icon: "🎬" },
+      { href: "/video/trim", label: "טרים מתקדם", icon: "✂️" },
     ],
   },
   {

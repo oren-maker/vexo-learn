@@ -3,6 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { renderWithShotstack } from "@/lib/shotstack";
+import { logEdit } from "@/lib/merge-edit-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { id: job.id },
     data: { status: "processing", errorMsg: null },
   });
+  await logEdit(job.id, "merge-started", { engine: job.engine, clips: job.clips.length });
 
   if (job.engine === "shotstack") {
     if (!process.env.SHOTSTACK_API_KEY) {

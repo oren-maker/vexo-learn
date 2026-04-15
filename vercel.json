@@ -8,7 +8,9 @@
     "app/learn/sources/[id]/page.tsx": { "maxDuration": 300 },
     "app/api/learn/pattern-extract/route.ts": { "maxDuration": 300 },
     "app/api/cron/insights-snapshot/route.ts": { "maxDuration": 300 },
-    "app/api/video/jobs/[id]/run/route.ts": { "maxDuration": 300 }
+    "app/api/video/jobs/[id]/run/route.ts": { "maxDuration": 300 },
+    "app/api/video/transitions/generate/route.ts": { "maxDuration": 300 },
+    "app/api/video/trim/sessions/[id]/rate/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     { "path": "/api/cron/sync-seedance", "schedule": "0 3 * * *" },

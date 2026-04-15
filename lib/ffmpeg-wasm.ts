@@ -27,6 +27,40 @@ export type MergeOptions = {
 
 let _ff: FFmpeg | null = null;
 
+export async function getFFmpegInstance(): Promise<FFmpeg> {
+  return getFFmpeg();
+}
+
+// Extract one frame at the given time (in seconds) from a video URL → returns a JPEG Blob
+export async function extractFrameAt(videoUrl: string, atSec: number, suffix: string): Promise<Blob> {
+  const ff = await getFFmpeg();
+  const tag = `frx-${Date.now()}-${suffix}`;
+  const inName = `${tag}-in.mp4`;
+  const outName = `${tag}-out.jpg`;
+  await ff.writeFile(inName, await fetchFile(videoUrl));
+  await ff.exec([
+    "-ss", String(Math.max(0, atSec)),
+    "-i", inName,
+    "-frames:v", "1",
+    "-q:v", "2",
+    "-y", outName,
+  ]);
+  const data = await ff.readFile(outName);
+  await Promise.all([ff.deleteFile(inName).catch(() => {}), ff.deleteFile(outName).catch(() => {})]);
+  return new Blob([data as BlobPart], { type: "image/jpeg" });
+}
+
+// First frame = at 0
+export function extractFirstFrame(videoUrl: string, suffix = "first") {
+  return extractFrameAt(videoUrl, 0, suffix);
+}
+
+// Last frame = need duration first; pass it explicitly to avoid an extra probe
+export function extractLastFrame(videoUrl: string, durationSec: number, suffix = "last") {
+  // Subtract a tiny epsilon so we don't seek past EOF
+  return extractFrameAt(videoUrl, Math.max(0, durationSec - 0.05), suffix);
+}
+
 async function getFFmpeg(): Promise<FFmpeg> {
   if (_ff) return _ff;
   const ff = new FFmpeg();

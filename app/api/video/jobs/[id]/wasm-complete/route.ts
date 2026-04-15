@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { logEdit } from "@/lib/merge-edit-log";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: { status: "failed", errorMsg: String(body.errorMsg).slice(0, 1000), completedAt: new Date() },
     });
+    await logEdit(params.id, "merge-failed", { error: String(body.errorMsg).slice(0, 200) });
     return NextResponse.json({ ok: true });
   }
   if (!body.outputUrl) return NextResponse.json({ error: "outputUrl required" }, { status: 400 });
@@ -27,5 +29,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       completedAt: new Date(),
     },
   });
+  await logEdit(params.id, "merge-completed", { outputDuration: body.outputDuration, outputUrl: body.outputUrl });
   return NextResponse.json({ ok: true });
 }

@@ -222,6 +222,7 @@ model MergeJob {
   status         String   @default("draft")  // draft | uploading | processing | complete | failed
   engine         String   @default("wasm")   // wasm | shotstack | ai
   clips          MergeClip[]
+  transitions    MergeTransition[]
   outputUrl      String?
   outputDuration Float?
   audioMode      String   @default("keep")   // keep | mute | track
@@ -252,4 +253,63 @@ model MergeClip {
   createdAt     DateTime @default(now())
 
   @@index([jobId, order])
+}
+
+model MergeTransition {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           MergeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  beforeClipId  String   // MergeClip.id of the clip BEFORE this transition (last frame source)
+  afterClipId   String   // MergeClip.id of the clip AFTER (first frame source)
+  type          String   // luma-ray2 | runway-gen3 | etc.
+  startFrameUrl String
+  endFrameUrl   String
+  outputUrl     String?
+  status        String   @default("pending") // pending | rendering | complete | failed
+  externalId    String?  // fal.ai request id
+  durationSec   Float    @default(5)
+  costUsd       Float    @default(0)
+  errorMsg      String?  @db.Text
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  @@index([jobId])
+  @@index([status])
+}
+
+model TrimSession {
+  id           String   @id @default(cuid())
+  inputBlobUrl String
+  filename     String
+  durationSec  Float?
+  status       String   @default("pending") // pending | detecting | rating | ready | failed
+  scenes       TrimScene[]
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model TrimScene {
+  id           String   @id @default(cuid())
+  sessionId    String
+  session      TrimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  startSec     Float
+  endSec       Float
+  thumbnailUrl String?
+  aiRating     Int?
+  aiReason     String?  @db.Text
+  selected     Boolean  @default(true)
+  order        Int
+
+  @@index([sessionId, order])
+}
+
+model MergeEdit {
+  id        String   @id @default(cuid())
+  jobId     String
+  action    String   // "clip-added" | "clip-removed" | "clip-reordered" | "clip-trimmed" | "transition-changed" | "audio-changed" | "engine-changed" | "merge-started" | "merge-completed" | "merge-failed" | "ai-transition-generated"
+  details   Json?    // arbitrary payload describing the change
+  createdAt DateTime @default(now())
+
+  @@index([jobId, createdAt])
 }

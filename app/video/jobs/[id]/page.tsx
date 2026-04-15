@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import EditTimeline from "@/components/video/edit-timeline";
+import MergeEditLog from "@/components/video/merge-edit-log";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobResultPage({ params }: { params: { id: string } }) {
   const job = await prisma.mergeJob.findUnique({
     where: { id: params.id },
-    include: { clips: { orderBy: { order: "asc" } } },
+    include: { clips: { orderBy: { order: "asc" } }, transitions: true },
   });
   if (!job) notFound();
 
@@ -60,6 +62,38 @@ export default async function JobResultPage({ params }: { params: { id: string }
           <div className="text-xs text-slate-500 mt-1">חזור בעוד דקה ורענן את הדף</div>
         </section>
       )}
+
+      {/* Premiere-style timeline */}
+      <section className="mb-6">
+        <h2 className="text-lg font-bold text-white mb-3">🎞 ציר זמן</h2>
+        <EditTimeline
+          clips={job.clips.map((c) => ({
+            filename: c.filename,
+            durationSec: c.durationSec,
+            trimStart: c.trimStart,
+            trimEnd: c.trimEnd,
+            transition: c.transition,
+            transitionDur: c.transitionDur,
+          }))}
+          transitions={job.transitions.map((t) => {
+            const beforeIdx = job.clips.findIndex((c) => c.id === t.beforeClipId);
+            return {
+              beforeClipIndex: beforeIdx,
+              type: t.type,
+              durationSec: t.durationSec,
+              status: t.status as any,
+            };
+          })}
+          audioMode={job.audioMode as any}
+          audioTrackUrl={job.audioTrackUrl}
+          techSpecs={{ resolution: "1280x720", fps: 30, codec: "H.264 + AAC", aspectRatio: "16:9" }}
+        />
+      </section>
+
+      {/* Edit log */}
+      <section className="mb-6">
+        <MergeEditLog jobId={job.id} />
+      </section>
 
       <section>
         <h2 className="text-lg font-bold text-white mb-3">קליפים בפרויקט ({job.clips.length})</h2>

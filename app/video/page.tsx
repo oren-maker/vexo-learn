@@ -26,18 +26,18 @@ export default async function VideoLanding() {
           status="active"
         />
         <FeatureCard
-          href="#"
+          href="/video/merge"
           icon="✨"
           title="AI Transitions"
-          desc="פריימי מעבר חלקים ע״י Runway / Pika בין clips."
-          status="soon"
+          desc="מעברים חלקים ע״י Luma Ray-2 בין clips. בחר 'AI Luma' ב-dropdown של ה-transition."
+          status="active"
         />
         <FeatureCard
-          href="#"
+          href="/video/trim"
           icon="✂️"
           title="טרים מתקדם"
-          desc="עריכה לפי scene detection ו-AI cuts."
-          status="soon"
+          desc="Scene detection אוטומטי + Gemini Flash מדרג כל סצנה."
+          status="active"
         />
       </section>
 

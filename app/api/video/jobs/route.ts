@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { logEdit } from "@/lib/merge-edit-log";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
       },
       include: { clips: { orderBy: { order: "asc" } } },
     });
+    await logEdit(job.id, "clip-added", { clipsCreated: clips.length, engine, audioMode });
     return NextResponse.json({ ok: true, job });
   } catch (e: any) {
     console.error("[video jobs create]", e);

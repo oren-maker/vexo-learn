@@ -4,6 +4,7 @@ import { useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { useRouter } from "next/navigation";
 import { adminHeaders, getAdminKey } from "@/lib/admin-key";
+import EditTimeline from "@/components/video/edit-timeline";
 
 type LocalClip = {
   tempId: string;
@@ -13,7 +14,7 @@ type LocalClip = {
   sizeBytes: number;
   trimStart: number | null;
   trimEnd: number | null;
-  transition: "cut" | "fade" | "dissolve";
+  transition: "cut" | "fade" | "dissolve" | "ai-luma";
   transitionDur: number;
 };
 
@@ -161,24 +162,96 @@ export default function MergeWorkflow() {
         return;
       }
 
-      // 4. WASM path: run in browser
+      // 4a. WASM path: extract frames + (optionally) generate AI transitions first
       setProgressPct(5); setProgressMsg("טוען FFmpeg.wasm…");
-      const { mergeClipsInBrowser } = await import("@/lib/ffmpeg-wasm");
-      const blob = await mergeClipsInBrowser(
-        clips.map((c) => ({
-          blobUrl: c.blobUrl,
-          filename: c.filename,
-          trimStart: c.trimStart,
-          trimEnd: c.trimEnd,
-          transition: c.transition,
-          transitionDur: c.transitionDur,
-        })),
-        {
-          audioMode,
-          audioTrackUrl,
-          onProgress: (pct, msg) => { setProgressPct(pct); setProgressMsg(msg); },
-        },
-      );
+      const ffmpegMod = await import("@/lib/ffmpeg-wasm");
+      const { mergeClipsInBrowser, extractFirstFrame, extractLastFrame } = ffmpegMod;
+
+      // For each AI transition, extract last frame of clip[i] + first frame of clip[i+1], upload, generate
+      const aiOutputUrls: Record<number, string> = {}; // index → MP4 url of the AI transition between clips[i] and clips[i+1]
+      const aiIndices = clips.map((c, i) => (i < clips.length - 1 && c.transition === "ai-luma" ? i : -1)).filter((i) => i >= 0);
+      for (let k = 0; k < aiIndices.length; k++) {
+        const i = aiIndices[k];
+        setProgressPct(5 + (k / Math.max(1, aiIndices.length)) * 30);
+        setProgressMsg(`🤖 AI transition ${k + 1}/${aiIndices.length} — מחלץ frames`);
+        const [lastBlob, firstBlob] = await Promise.all([
+          extractLastFrame(clips[i].blobUrl, clips[i].durationSec || 5, `c${i}-last`),
+          extractFirstFrame(clips[i + 1].blobUrl, `c${i + 1}-first`),
+        ]);
+        // Upload both frames to Blob
+        const [startUp, endUp] = await Promise.all([
+          upload(`video-merge/frames/${jobId}-${i}-last.jpg`, new File([lastBlob], "last.jpg", { type: "image/jpeg" }), {
+            access: "public",
+            handleUploadUrl: "/api/video/upload",
+            headers: adminHeaders() as any,
+          }),
+          upload(`video-merge/frames/${jobId}-${i + 1}-first.jpg`, new File([firstBlob], "first.jpg", { type: "image/jpeg" }), {
+            access: "public",
+            handleUploadUrl: "/api/video/upload",
+            headers: adminHeaders() as any,
+          }),
+        ]);
+        setProgressMsg(`🤖 AI transition ${k + 1}/${aiIndices.length} — Luma מרנדר (~30s)`);
+        const genRes = await fetch("/api/video/transitions/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...adminHeaders() },
+          body: JSON.stringify({
+            jobId,
+            beforeClipId: j.job.clips[i].id,
+            afterClipId: j.job.clips[i + 1].id,
+            startFrameUrl: startUp.url,
+            endFrameUrl: endUp.url,
+            type: "luma-ray2",
+            durationSec: 5,
+          }),
+        });
+        const genJson = await genRes.json();
+        if (!genRes.ok || !genJson.ok) throw new Error(`AI transition ${i}→${i + 1}: ${genJson.error || "failed"}`);
+        // Poll the transition until done
+        const transitionId = genJson.transitionId;
+        const deadline = Date.now() + 5 * 60 * 1000;
+        let lumaUrl: string | null = null;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const sRes = await fetch(`/api/video/transitions/${transitionId}`);
+          if (!sRes.ok) continue;
+          const sJson = await sRes.json();
+          if (sJson.status === "complete" && sJson.outputUrl) { lumaUrl = sJson.outputUrl; break; }
+          if (sJson.status === "failed") throw new Error(`AI transition failed: ${sJson.errorMsg || "unknown"}`);
+        }
+        if (!lumaUrl) throw new Error(`AI transition timeout`);
+        aiOutputUrls[i] = lumaUrl;
+      }
+
+      // 4b. Build the actual concat list — interleave AI transition clips between user clips
+      setProgressPct(40); setProgressMsg("מאחד את הקליפים והמעברים…");
+      const mergeClipList: any[] = [];
+      for (let i = 0; i < clips.length; i++) {
+        mergeClipList.push({
+          blobUrl: clips[i].blobUrl,
+          filename: clips[i].filename,
+          trimStart: clips[i].trimStart,
+          trimEnd: clips[i].trimEnd,
+          transition: aiOutputUrls[i] != null ? "cut" : clips[i].transition, // AI handled, force cut so wasm doesn't re-fade
+          transitionDur: 0,
+        });
+        if (aiOutputUrls[i]) {
+          mergeClipList.push({
+            blobUrl: aiOutputUrls[i],
+            filename: `ai-transition-${i}.mp4`,
+            trimStart: null,
+            trimEnd: null,
+            transition: "cut",
+            transitionDur: 0,
+          });
+        }
+      }
+
+      const blob = await mergeClipsInBrowser(mergeClipList, {
+        audioMode,
+        audioTrackUrl,
+        onProgress: (pct, msg) => { setProgressPct(40 + pct * 0.55); setProgressMsg(msg); },
+      });
 
       // 5. Upload merged result back to Blob
       setProgressPct(98); setProgressMsg("מעלה תוצאה ל-Blob…");
@@ -277,6 +350,7 @@ export default function MergeWorkflow() {
                           <option value="cut">cut (חיתוך חד)</option>
                           <option value="fade">fade (החשכה)</option>
                           <option value="dissolve">dissolve (התמזגות)</option>
+                          <option value="ai-luma">🤖 AI Luma (~$0.40)</option>
                         </select>
                       </div>
                       <div>
@@ -354,7 +428,26 @@ export default function MergeWorkflow() {
         </Section>
       )}
 
-      {/* Step 5: Run + progress */}
+      {/* Timeline preview (Premiere-style) */}
+      {clips.length > 0 && (
+        <Section step={5} title="ציר זמן (תצוגה מקדימה)">
+          <EditTimeline
+            clips={clips.map((c) => ({
+              filename: c.filename,
+              durationSec: c.durationSec,
+              trimStart: c.trimStart,
+              trimEnd: c.trimEnd,
+              transition: c.transition,
+              transitionDur: c.transitionDur,
+            }))}
+            audioMode={audioMode}
+            audioTrackUrl={audioTrackUrl}
+            techSpecs={{ resolution: "1280x720", fps: 30, codec: "H.264 + AAC", aspectRatio: "16:9" }}
+          />
+        </Section>
+      )}
+
+      {/* Step 6: Run + progress */}
       {clips.length > 0 && (
         <div className="space-y-3">
           <button

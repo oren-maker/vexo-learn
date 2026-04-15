@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { logEdit } from "@/lib/merge-edit-log";
 
 export const runtime = "nodejs";
 
@@ -27,9 +28,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (Object.keys(data).length > 0) {
       await prisma.mergeJob.update({ where: { id: params.id }, data });
+      if (data.engine) await logEdit(params.id, "engine-changed", { engine: data.engine });
+      if (data.audioMode || "audioTrackUrl" in data) await logEdit(params.id, "audio-changed", { audioMode: data.audioMode, audioTrackUrl: data.audioTrackUrl });
     }
 
     if (Array.isArray(body.clips)) {
+      // Log per-clip changes (best-effort, summary only)
+      await logEdit(params.id, "clip-trimmed", { clipsUpdated: body.clips.length });
       // Apply each clip update individually — small N (≤20), so fine.
       await Promise.all(
         body.clips.map((c: any) =>
