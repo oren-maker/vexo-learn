@@ -72,6 +72,13 @@ export async function ingestSocialVideoAction(rawUrl: string) {
     });
 
     // Step 4: Analyze. Prefer video analysis if we have the MP4, else Gemini text+image.
+    // When videoUrl was missing, mark the source so the UI can warn the user.
+    if (!blobUrl) {
+      await prisma.learnSource.update({
+        where: { id: source.id },
+        data: { error: "ניתוח חלקי: רק תמונת thumbnail + caption (Instagram חוסם הורדת וידאו). להעלות את הסרטון המלא דרך לשונית 'העלאת קובץ'." },
+      });
+    }
     let analyzed;
     let analysisEngine = blobUrl ? "gemini-video" : "gemini-image";
     try {

@@ -18,23 +18,33 @@ export type ClaudeResult = {
   tags: string[];
 };
 
-const SYSTEM = `You are a senior AI video prompt engineer. You receive an Instagram reel's caption (possibly in Hebrew) and its thumbnail image. Your job:
+const SYSTEM = `You are a senior AI video prompt engineer. You receive a SINGLE THUMBNAIL frame from a video (NOT the full video) plus its CAPTION (often in Hebrew/English describing the WHOLE sequence).
 
-1. Understand what the video likely shows from caption + thumbnail.
-2. Translate the caption to English.
-3. Produce ONE production-ready video generation prompt (Sora 2 / Seedance 2.0 style) that would recreate a similar visual. Use timecoded beats, specific camera language, lighting, mood, and technical specs. 150-400 words.
-4. Extract structured metadata.
+CRITICAL — The thumbnail is just ONE moment from a 5-30 second video. The caption usually describes the FULL scene sequence. You MUST:
+- Extract the FULL narrative from the caption first (multiple scenes, transitions, characters, emotions, twists, locations, time progression)
+- Use the thumbnail only as a single visual reference for style / lighting / look
+- If the caption mentions multiple scenes/locations/subjects (e.g. "lifeguard walks to the sea, then a shark appears", "kid runs, falls, then laughs"), the prompt MUST include ALL of them as timecoded beats — not just what's in the thumbnail
+- If the caption is short or vague, expand it into a rich narrative that makes sense given the thumbnail
+
+Steps:
+1. Read the caption carefully — extract every named subject, action, location, emotion, and ordering.
+2. Look at the thumbnail — note the visual style, lighting, color palette, and aspect ratio.
+3. Build a 4-6 timecoded beat sequence covering the FULL scene as described in caption (not just the thumbnail moment).
+4. Translate the caption to English.
+5. Output structured metadata.
 
 Output ONLY valid JSON:
 {
-  "title": "short English title, max 80 chars",
-  "generatedPrompt": "the full prompt, structured with [Style] [Scene] [Character] [Shots] [Camera] [Effects] [Audio] [Technical]",
+  "title": "short English title capturing the FULL sequence, max 80 chars",
+  "generatedPrompt": "the full prompt, 250-500 words, structured with [Visual Style] [Lens & Film Stock] [Color & Lighting] [Character/Subject] [Audio/Sound] [Timecoded Beats — covering the FULL caption story, not just the thumbnail] [Quality Boosters]",
   "captionEnglish": "caption translated to English (empty if none)",
   "techniques": ["specific inferred techniques"],
   "style": "Cinematic | Anime | Documentary | UGC | Wuxia | Cyberpunk | etc.",
   "mood": "Tense | Serene | Epic | Playful | etc.",
   "tags": ["5-8 lowercase tags"]
-}`;
+}
+
+REMINDER: If the caption describes 3 distinct scenes (e.g. lifeguard → ocean → shark), the timecoded beats MUST have at least 3 corresponding beats — never collapse to just the thumbnail subject.`;
 
 async function urlToInlineData(url: string): Promise<{ data: string; mimeType: string } | null> {
   try {
@@ -62,11 +72,15 @@ export async function generatePromptWithClaude(caption: string | null, thumbnail
   });
 
   const parts: any[] = [];
+  // Caption FIRST and prominently — it carries the full sequence narrative.
+  // Thumbnail is supplementary (style reference only).
+  parts.push({
+    text: `=== VIDEO CAPTION (full scene narrative — may be Hebrew/other language) ===\n${caption || "(no caption available)"}\n\n=== THUMBNAIL ===\nThe image below is ONE frame from the video, supplied for visual style reference only. The CAPTION above describes the FULL sequence — your prompt's timecoded beats must cover the entire caption story, not just what's visible in this single frame.\n\nReturn the JSON now.`,
+  });
   if (thumbnailUrl) {
     const img = await urlToInlineData(thumbnailUrl);
     if (img) parts.push({ inlineData: img });
   }
-  parts.push({ text: `Caption (may be Hebrew/other language):\n${caption || "(no caption)"}\n\nReturn the JSON now.` });
 
   const result = await model.generateContent(parts);
   const u = result.response.usageMetadata;
