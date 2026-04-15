@@ -16,7 +16,11 @@ export default async function GuidesLibraryPage({ searchParams }: { searchParams
       status: { in: ["draft", "published"] },
       ...(category ? { category } : {}),
     },
-    include: { translations: true },
+    select: {
+      id: true, slug: true, defaultLang: true, coverImageUrl: true,
+      category: true, estimatedMinutes: true, userRating: true,
+      translations: { select: { lang: true, title: true, description: true, isAuto: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 60,
   });

@@ -10,7 +10,7 @@ export const revalidate = 0;
 export default async function InsightsPage() {
   const [insights, latestSnapshot, snapshotCount] = await Promise.all([
     computeCorpusInsights(),
-    prisma.insightsSnapshot.findFirst({ orderBy: { takenAt: "desc" }, select: { takenAt: true, summary: true } }),
+    prisma.insightsSnapshot.findFirst({ where: { kind: "hourly" }, orderBy: { takenAt: "desc" }, select: { takenAt: true, summary: true } }),
     prisma.insightsSnapshot.count(),
   ]);
   const t = insights.totals;

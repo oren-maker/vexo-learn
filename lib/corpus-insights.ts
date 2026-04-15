@@ -338,8 +338,6 @@ export async function computeCorpusInsights(): Promise<CorpusInsights> {
   }
 
   return result;
-
-  return result;
 }
 
 // ---- Upgrade insights: learn from PromptVersion diffs ----
@@ -378,6 +376,7 @@ export async function computeUpgradeInsights(): Promise<UpgradeInsights> {
   const versions = await prisma.promptVersion.findMany({
     orderBy: [{ sourceId: "asc" }, { version: "asc" }],
     select: { id: true, sourceId: true, version: true, prompt: true, triggeredBy: true, createdAt: true },
+    take: 2000,
   });
   if (versions.length === 0) {
     return {
