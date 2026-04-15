@@ -40,7 +40,7 @@ export default async function ModuleHeader({
         </span>
         <span className="text-emerald-300">
           💵 <span className="font-mono">${totalUsd.toFixed(2)}</span>{" "}
-          <span className="text-slate-500">סה"כ</span>
+          <span className="text-slate-500">סה&quot;כ</span>
         </span>
         {extra}
       </div>
