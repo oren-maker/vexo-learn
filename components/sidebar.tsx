@@ -19,21 +19,16 @@ const groups = [
     icon: "🧠",
     items: [
       { href: "/learn/brain", label: "המוח", icon: "🧠" },
+      { href: "/learn/brain/chat", label: "שיחה עם המוח", icon: "💬" },
       { href: "/learn/insights", label: "תובנות", icon: "📊" },
       { href: "/learn/consciousness", label: "תודעה", icon: "👁" },
       { href: "/learn", label: "Feed", icon: "📚" },
       { href: "/learn/sources", label: "ספרייה", icon: "🎬" },
-      { href: "/learn/knowledge", label: "Knowledge", icon: "🧠" },
-      { href: "/learn/search", label: "חיפוש", icon: "🔍" },
-      { href: "/learn/search/semantic", label: "חיפוש סמנטי", icon: "🧠" },
-    ],
-  },
-  {
-    title: "הזנה",
-    icon: "➕",
-    items: [
-      { href: "/learn/sources/new", label: "הוסף", icon: "➕" },
+      { href: "/learn/sources/new", label: "הוסף מקור", icon: "➕" },
       { href: "/learn/sync", label: "סנכרון", icon: "🔄" },
+      { href: "/learn/knowledge", label: "Knowledge", icon: "💡" },
+      { href: "/learn/search", label: "חיפוש", icon: "🔍" },
+      { href: "/learn/search/semantic", label: "חיפוש סמנטי", icon: "🧬" },
     ],
   },
   {
