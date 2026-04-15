@@ -26,7 +26,7 @@ export default async function BrainHistoryPage() {
 
       {caches.length === 0 ? (
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-10 text-center">
-          <p className="text-slate-400">אין עדיין caches. חזור ל-/learn/brain ולחץ "🔄 רענן זהות".</p>
+          <p className="text-slate-400">אין עדיין caches. חזור ל-/learn/brain ולחץ &quot;🔄 רענן זהות&quot;.</p>
         </div>
       ) : (
         <div className="space-y-3">
