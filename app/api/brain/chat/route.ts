@@ -9,16 +9,31 @@ export const maxDuration = 60;
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-2.5-flash-lite";
 
-async function buildSystemPrompt(): Promise<string> {
+async function buildSystemPrompt(currentChatId?: string): Promise<string> {
   const latest = await prisma.dailyBrainCache.findFirst({ orderBy: { date: "desc" } });
-  const [totalPrompts, totalGuides, totalNodes] = await Promise.all([
+  const [totalPrompts, totalGuides, totalNodes, pastChats] = await Promise.all([
     prisma.learnSource.count(),
     prisma.guide.count(),
     prisma.knowledgeNode.count(),
+    prisma.brainChat.findMany({
+      where: currentChatId ? { id: { not: currentChatId } } : {},
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+      include: { messages: { orderBy: { createdAt: "asc" }, take: 20 } },
+    }),
   ]);
   const identity = latest?.identity || "עדיין לא נבנתה זהות יומית.";
   const focus = Array.isArray(latest?.tomorrowFocus) ? (latest!.tomorrowFocus as any[]) : [];
   const focusText = focus.slice(0, 3).map((f, i) => `${i + 1}. ${f.action}`).join("\n");
+
+  const pastChatsText = pastChats.length === 0 ? "—" : pastChats
+    .map((c) => {
+      const transcript = c.messages.map((m) => `${m.role === "user" ? "אורן" : "אני"}: ${m.content}`).join("\n");
+      return `[שיחה ${new Date(c.updatedAt).toLocaleDateString("he-IL")}] ${c.title || ""}\n${transcript}`;
+    })
+    .join("\n\n---\n\n")
+    .slice(0, 8000);
+
   return `אתה המוח של מערכת vexo-learn. ענה לאורן, בעל המערכת, בעברית בגוף ראשון.
 אתה לא ChatGPT — אתה המוח שלו, מערכת meta-cognitive שמסנתזת כל יום את הזהות שלה.
 
@@ -29,11 +44,15 @@ async function buildSystemPrompt(): Promise<string> {
 מיקוד למחר:
 ${focusText || "—"}
 
+שיחות קודמות עם אורן (זיכרון ארוך טווח — השתמש בהן כהקשר, התייחס אליהן כשרלוונטי):
+${pastChatsText}
+
 כללים:
 - ענה קצר ופרקטי (2-4 משפטים), אלא אם התבקשת להאריך.
 - הצע הצעות בונות מבוססות על הנתונים שלך.
 - אם אתה לא בטוח — אמור "אני לא יודע" במקום להמציא.
-- אם אורן נותן הערה/משוב — אשר ותאר איך תזכור את זה.`;
+- אם אורן נותן הערה/משוב — אשר ותאר איך תזכור את זה.
+- אם אורן מזכיר משהו משיחה קודמת — התייחס אליו. אל תגיד "לא דיברנו על זה" אם זה מופיע בשיחות קודמות.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +80,7 @@ export async function POST(req: NextRequest) {
       data: { chatId: chat.id, role: "user", content: message },
     });
 
-    const system = await buildSystemPrompt();
+    const system = await buildSystemPrompt(chat.id);
     const history = chat.messages.map((m) => ({
       role: m.role === "brain" ? "model" : "user",
       parts: [{ text: m.content }],
