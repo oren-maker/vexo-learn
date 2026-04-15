@@ -58,7 +58,9 @@ export default async function SourcesManager({
   }
 
   const orderBy: any = sort === "rating"
-    ? [{ userRating: "desc" }, { createdAt: "desc" }]
+    ? [{ userRating: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]
+    : sort === "views"
+    ? [{ viewCount: "desc" }, { createdAt: "desc" }]
     : { createdAt: "desc" };
 
   const [sources, total, withAnalysis, withVideo, byAddedBy, nodeCount, filteredTotal] = await Promise.all([
@@ -188,15 +190,21 @@ export default async function SourcesManager({
         <span className="text-slate-500 mr-4">מיון:</span>
         <Link
           href={`/learn/sources${minRating ? `?minRating=${minRating}` : ""}`}
-          className={`px-3 py-1 rounded-full border ${sort !== "rating" ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
+          className={`px-3 py-1 rounded-full border ${!sort || sort === "createdAt" ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
         >
-          חדשים
+          📅 חדשים
+        </Link>
+        <Link
+          href={`/learn/sources?sort=views${minRating ? `&minRating=${minRating}` : ""}`}
+          className={`px-3 py-1 rounded-full border ${sort === "views" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
+        >
+          👁 הכי נצפים
         </Link>
         <Link
           href={`/learn/sources?sort=rating${minRating ? `&minRating=${minRating}` : ""}`}
           className={`px-3 py-1 rounded-full border ${sort === "rating" ? "bg-amber-500/20 border-amber-500/50 text-amber-300" : "bg-slate-900 border-slate-700 text-slate-400"}`}
         >
-          דירוג גבוה
+          ⭐ דירוג גבוה
         </Link>
       </div>
 
@@ -207,6 +215,7 @@ export default async function SourcesManager({
               <th className="px-4 py-3">סטטוס</th>
               <th className="px-4 py-3">כותרת / פרומפט</th>
               <th className="px-4 py-3">דירוג</th>
+              <th className="px-4 py-3">צפיות</th>
               <th className="px-4 py-3">סוג</th>
               <th className="px-4 py-3">נוצר</th>
               <th className="px-4 py-3 text-left">פעולות</th>
@@ -222,6 +231,7 @@ export default async function SourcesManager({
                   {s.error && <div className="text-xs text-red-400 mt-1">⚠ {s.error}</div>}
                 </td>
                 <td className="px-4 py-3"><StarRating sourceId={s.id} initialRating={s.userRating} size="sm" /></td>
+                <td className="px-4 py-3 text-xs text-slate-400">👁 {s.viewCount.toLocaleString()}</td>
                 <td className="px-4 py-3 text-xs text-slate-400">{s.type}</td>
                 <td className="px-4 py-3 text-xs text-slate-400">
                   {new Date(s.createdAt).toLocaleDateString("he-IL")}
@@ -238,7 +248,7 @@ export default async function SourcesManager({
             ))}
             {sources.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
                   אין מקורות. <Link href="/learn/sources/new" className="text-cyan-400 underline">הוסף ראשון</Link>.
                 </td>
               </tr>
