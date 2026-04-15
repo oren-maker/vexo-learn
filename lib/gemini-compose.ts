@@ -19,41 +19,46 @@ function isQuotaError(e: any): boolean {
 
 async function pickReferences(brief: string, k = 5) {
   const STOP = new Set(["a", "an", "the", "of", "and", "or", "in", "to", "with", "for", "on", "at", "by", "from"]);
+  // Hebrew briefs won't match English prompt keywords, so we only use ASCII words here.
+  // For Hebrew-only briefs we skip to the latest-prompts fallback.
   const keywords = brief
     .toLowerCase()
     .split(/[\s,.!?;:]+/)
-    .filter((w) => w.length >= 3 && !STOP.has(w))
+    .filter((w) => w.length >= 3 && !STOP.has(w) && /^[a-z0-9]+$/.test(w))
     .slice(0, 10);
 
-  if (keywords.length === 0) {
-    return prisma.learnSource.findMany({
-      where: { type: "cedance", status: "complete" },
-      take: k,
+  const baseWhere = { status: "complete", prompt: { not: "" } };
+
+  if (keywords.length > 0) {
+    const candidates = await prisma.learnSource.findMany({
+      where: {
+        ...baseWhere,
+        OR: keywords.flatMap((kw) => [
+          { prompt: { contains: kw, mode: "insensitive" as const } },
+          { title: { contains: kw, mode: "insensitive" as const } },
+        ]),
+      },
+      take: k * 5,
       orderBy: { createdAt: "desc" },
     });
+    if (candidates.length > 0) {
+      const scored = candidates.map((c) => {
+        const hay = `${c.title || ""}\n${c.prompt}`.toLowerCase();
+        let score = 0;
+        for (const kw of keywords) score += hay.split(kw).length - 1;
+        return { c, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, k).map((s) => s.c);
+    }
   }
 
-  const candidates = await prisma.learnSource.findMany({
-    where: {
-      type: "cedance",
-      status: "complete",
-      OR: keywords.flatMap((kw) => [
-        { prompt: { contains: kw, mode: "insensitive" as const } },
-        { title: { contains: kw, mode: "insensitive" as const } },
-      ]),
-    },
-    take: k * 5,
-    orderBy: { createdAt: "desc" },
+  // Fallback: no keyword match (e.g. Hebrew-only brief) — use top-rated + newest completed prompts
+  return prisma.learnSource.findMany({
+    where: baseWhere,
+    take: k,
+    orderBy: [{ userRating: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
   });
-
-  const scored = candidates.map((c) => {
-    const hay = `${c.title || ""}\n${c.prompt}`.toLowerCase();
-    let score = 0;
-    for (const kw of keywords) score += hay.split(kw).length - 1;
-    return { c, score };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, k).map((s) => s.c);
 }
 
 const SYSTEM_PROMPT = `You are an expert AI video prompt engineer for Seedance 2.0, Sora, Kling, and Veo. You write English prompts ONLY (native language of the engines).
