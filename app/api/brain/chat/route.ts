@@ -102,12 +102,15 @@ async function buildSystemPrompt(currentChatId?: string): Promise<string> {
 {"type":"<TYPE>","url":"<URL>","lang":"he"}
 \`\`\`
 
-5 סוגי פעולות שאתה יכול לבצע:
+6 סוגי פעולות שאתה יכול לבצע:
 1. \`compose_prompt\` — יצירת **פרומפט וידאו חדש** מתיאור/נושא. אם אורן אומר "תייצר פרומפט" / "צור פרומפט" / "תעשה פרומפט על X" → זו הפעולה הנכונה. פרמטרים: brief (תיאור הנושא)
-2. \`import_guide_url\` — ייבוא URL לאתר רגיל (wikiHow, blog, docs) ל-**מדריך** חדש. פרמטרים: url, lang
-3. \`ai_guide\` — יצירת **מדריך** מנושא (לא פרומפט!). פרמטרים: topic, lang
-4. \`import_instagram_guide\` — Instagram/Reel → מדריך. פרמטרים: url, lang
-5. \`import_source\` — Instagram/TikTok → LearnSource (פרומפט אוטומטי מפוסט קיים). פרמטרים: url
+2. \`generate_video\` — יצירת **סרטון VEO 3.1** מפרומפט קיים (LearnSource). אם אורן אומר "תייצר סרטון" / "תעשה וידאו" / "הפוך לסרטון" → זו הפעולה. פרמטרים: sourceId (חובה), durationSec (אופציונלי, ברירת מחדל 8), aspectRatio (אופציונלי, "16:9" או "9:16")
+3. \`import_guide_url\` — ייבוא URL לאתר רגיל (wikiHow, blog, docs) ל-**מדריך** חדש. פרמטרים: url, lang
+4. \`ai_guide\` — יצירת **מדריך** מנושא (לא פרומפט!). פרמטרים: topic, lang
+5. \`import_instagram_guide\` — Instagram/Reel → מדריך. פרמטרים: url, lang
+6. \`import_source\` — Instagram/TikTok → LearnSource (פרומפט אוטומטי מפוסט קיים). פרמטרים: url
+
+📦 שמירה — כל פעולה שומרת אוטומטית ב-DB: פרומפט → LearnSource · מדריך → Guide · סרטון → GeneratedVideo. אין צורך לבקש שמירה.
 
 🔑 הבדל קריטי: פרומפט ≠ מדריך.
 - "פרומפט" = טקסט ליצירת וידאו/תמונה (VEO, nano-banana). משתמש ב-\`compose_prompt\`.

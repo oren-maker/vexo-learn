@@ -8,6 +8,7 @@ import { generateGuideFromTopic } from "@/lib/guide-ai";
 import { translateGuideToLang } from "@/lib/translate";
 import { runPipeline } from "@/lib/pipeline";
 import { composePrompt } from "@/lib/gemini-compose";
+import { startVideoGeneration, runVideoGeneration } from "@/lib/gemini-video-gen";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -121,7 +122,20 @@ export async function POST(req: NextRequest) {
       const sections = ["VISUAL STYLE", "FILM STOCK", "COLOR", "LIGHTING", "CHARACTER", "AUDIO", "TIMELINE", "QUALITY"]
         .filter((s) => composed.prompt.toUpperCase().includes(s));
       const preview = composed.prompt.slice(0, 600);
-      resultText = `✅ יצרתי פרומפט מלא: ${wordCount} מילים · ${sections.length}/8 סעיפים (${sections.join(" · ")}).\n\n📄 תצוגה מקדימה:\n${preview}${composed.prompt.length > 600 ? "..." : ""}\n\n💡 ${composed.rationale?.slice(0, 400) || ""}`;
+      resultText = `✅ יצרתי פרומפט מלא: ${wordCount} מילים · ${sections.length}/8 סעיפים.\n\n📄 תצוגה מקדימה:\n${preview}${composed.prompt.length > 600 ? "..." : ""}\n\n💡 ${composed.rationale?.slice(0, 300) || ""}\n\n🎬 רוצה לייצר ממנו סרטון VEO? אמור "תייצר סרטון" ואני אשלח action.\n\`\`\`action\n${JSON.stringify({ type: "generate_video", sourceId: source.id })}\n\`\`\``;
+    } else if (action.type === "generate_video") {
+      const sourceId = String(action.sourceId || "").trim();
+      if (!sourceId) return NextResponse.json({ error: "sourceId required" }, { status: 400 });
+      const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
+      if (!source) return NextResponse.json({ error: "source not found" }, { status: 404 });
+      if (!source.prompt) return NextResponse.json({ error: "source has no prompt" }, { status: 400 });
+      const videoId = await startVideoGeneration(source.prompt, source.id, {
+        durationSec: action.durationSec || 8,
+        aspectRatio: action.aspectRatio || "16:9",
+      });
+      waitUntil(runVideoGeneration(videoId, source.prompt).catch(() => {}));
+      resultUrl = `/learn/sources/${source.id}`;
+      resultText = `🎬 התחלתי ליצור סרטון VEO (8s, 16:9). זה לוקח 1-2 דקות. ניתן לראות את ההתקדמות בדף המקור.`;
     } else if (action.type === "import_source") {
       const source = await prisma.learnSource.create({
         data: { type: "instructor_url", url: action.url, prompt: "", status: "pending", addedBy: "brain-chat" },

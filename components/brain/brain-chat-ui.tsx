@@ -22,6 +22,7 @@ function parseAction(text: string): { stripped: string; action: ParsedAction | n
 function actionLabel(action: any): string {
   switch (action.type) {
     case "compose_prompt": return `✨ צור פרומפט וידאו חדש`;
+    case "generate_video": return `🎬 צור סרטון VEO`;
     case "import_guide_url": return `📥 ייבא מדריך מ-URL`;
     case "ai_guide": return `🤖 צור מדריך AI`;
     case "import_instagram_guide": return `📷 ייבא פוסט Instagram כמדריך`;
@@ -34,6 +35,7 @@ function actionDetail(action: any): string {
   if (action.url) return action.url;
   if (action.topic) return `"${action.topic}"`;
   if (action.brief) return `"${action.brief}"`;
+  if (action.sourceId) return `מקור: ${action.sourceId.slice(-8)}`;
   return "";
 }
 
