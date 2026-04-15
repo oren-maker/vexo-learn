@@ -167,14 +167,20 @@ export async function composePrompt(brief: string): Promise<ComposedPrompt> {
   return composeWithGemini(brief, refs);
 }
 
-export async function suggestSimilar(sourceId: string, count = 3): Promise<ComposedPrompt[]> {
+export async function suggestSimilar(
+  sourceId: string,
+  count = 3,
+  onProgress?: (i: number, total: number, elapsedMs: number) => Promise<void>,
+): Promise<ComposedPrompt[]> {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) throw new Error("source not found");
 
   const brief = `Create ${count} distinct variations inspired by this prompt (different subjects or scenes, same style/structure):\n\n${source.prompt.slice(0, 800)}`;
 
   const results: ComposedPrompt[] = [];
+  const t0 = Date.now();
   for (let i = 0; i < count; i++) {
+    if (onProgress) await onProgress(i, count, Date.now() - t0);
     try {
       const c = await composePrompt(brief);
       results.push(c);
@@ -182,5 +188,6 @@ export async function suggestSimilar(sourceId: string, count = 3): Promise<Compo
       // continue on individual failure
     }
   }
+  if (onProgress) await onProgress(count, count, Date.now() - t0);
   return results;
 }

@@ -1,25 +1,36 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { similarAction, saveComposedAction } from "@/app/learn/compose/actions";
+import { useState } from "react";
+import SyncProgress from "@/components/sync-progress";
+import { saveComposedAction } from "@/app/learn/compose/actions";
+import { adminHeaders } from "@/lib/admin-key";
 
 type Item = { prompt: string; rationale: string; similar: Array<{ id: string; title: string | null }> };
 
 export default function SuggestSimilar({ sourceId, sourceTitle }: { sourceId: string; sourceTitle?: string | null }) {
   const [items, setItems] = useState<Item[]>([]);
-  const [pending, startTransition] = useTransition();
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState<number | null>(null);
   const [savedIds, setSavedIds] = useState<Map<number, string>>(new Map());
 
-  function generate() {
-    setErr(""); setItems([]); setSavedIds(new Map());
-    startTransition(async () => {
-      const r = await similarAction(sourceId, 3);
-      if (!r.ok) setErr(r.error);
-      else if (r.items.length === 0) setErr("לא התקבלו וריאציות (ייתכן שה-quota מוצה)");
-      else setItems(r.items);
-    });
+  async function generate() {
+    setErr(""); setItems([]); setSavedIds(new Map()); setStarting(true);
+    try {
+      const res = await fetch("/api/learn/suggest-similar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...adminHeaders() },
+        body: JSON.stringify({ sourceId, count: 3 }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+      setJobId(j.jobId);
+    } catch (e: any) {
+      setErr(e.message || "שגיאה");
+    } finally {
+      setStarting(false);
+    }
   }
 
   async function saveItem(i: number) {
@@ -42,6 +53,8 @@ export default function SuggestSimilar({ sourceId, sourceTitle }: { sourceId: st
     }
   }
 
+  const pending = starting || !!jobId;
+
   return (
     <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 mt-4">
       <div className="flex items-center justify-between mb-3">
@@ -51,14 +64,33 @@ export default function SuggestSimilar({ sourceId, sourceTitle }: { sourceId: st
           disabled={pending}
           className="bg-purple-500 hover:bg-purple-400 text-white font-medium px-4 py-1.5 rounded-lg text-xs disabled:opacity-50"
         >
-          {pending ? "מחולל..." : "✨ חולל וריאציות"}
+          {pending ? "🔄 מחולל…" : "✨ חולל וריאציות"}
         </button>
       </div>
 
-      {err && <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded p-2 text-xs mb-3">⚠ {err}</div>}
+      {jobId && (
+        <SyncProgress
+          jobId={jobId}
+          steps={[
+            "טוען פרומפטים דומים מהמאגר",
+            "מחולל וריאציה 1/3",
+            "מחולל וריאציה 2/3",
+            "מחולל וריאציה 3/3",
+            "הושלם",
+          ]}
+          onComplete={(result) => {
+            setJobId(null);
+            if (result?.items?.length) setItems(result.items);
+            else setErr("לא התקבלו וריאציות (ייתכן quota)");
+          }}
+          onFailed={(e) => { setJobId(null); setErr(e); }}
+        />
+      )}
+
+      {err && <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded p-2 text-xs mt-3">⚠ {err}</div>}
 
       {items.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 mt-3">
           {items.map((it, i) => {
             const savedId = savedIds.get(i);
             return (
@@ -91,8 +123,8 @@ export default function SuggestSimilar({ sourceId, sourceTitle }: { sourceId: st
         </div>
       )}
 
-      {!pending && items.length === 0 && (
-        <p className="text-xs text-slate-500">לחץ על הכפתור כדי לבקש מ-Gemini לחולל 3 וריאציות על בסיס הפרומפט הזה + 5 דומים לו מהמערכת. כל וריאציה שתשמור תקושר למקור הזה אוטומטית.</p>
+      {!pending && items.length === 0 && !err && (
+        <p className="text-xs text-slate-500 mt-2">לחץ על הכפתור כדי לבקש מ-Gemini לחולל 3 וריאציות על בסיס הפרומפט הזה + 5 דומים לו מהמערכת. כל וריאציה שתשמור תקושר למקור הזה אוטומטית.</p>
       )}
     </div>
   );
