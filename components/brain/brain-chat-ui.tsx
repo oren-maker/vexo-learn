@@ -39,6 +39,44 @@ function actionDetail(action: any): string {
   return "";
 }
 
+const ACTION_STAGES: Record<string, string[]> = {
+  compose_prompt: [
+    "🔍 מחפש 5 פרומפטים רפרנס בספרייה...",
+    "🧠 Gemini מייצר פרומפט מלא (8 סעיפים)...",
+    "📝 מרכיב Visual Style + Lens + Color + Lighting...",
+    "🎭 מוסיף Character + Audio + Timeline...",
+    "💾 שומר ל-LearnSource ב-DB...",
+  ],
+  ai_guide: [
+    "🧠 Gemini מייצר מבנה מדריך (4-6 שלבים)...",
+    "📝 כותב תוכן לכל שלב...",
+    "💾 שומר ל-Guide ב-DB...",
+    "🌐 תרגום אוטומטי לעברית רץ ברקע...",
+  ],
+  import_guide_url: [
+    "🔗 מושך את ה-URL...",
+    "🔍 חולץ title + headings + paragraphs + images...",
+    "📝 ממפה לשלבי מדריך...",
+    "💾 שומר ל-Guide ב-DB...",
+  ],
+  import_instagram_guide: [
+    "📷 מושך את הפוסט מ-Instagram (embed API)...",
+    "📝 ממיר caption + thumbnail לשלב...",
+    "💾 שומר ל-Guide ב-DB...",
+  ],
+  import_source: [
+    "➕ יוצר LearnSource...",
+    "🔄 מפעיל pipeline ברקע (extract → analyze → prompt)...",
+    "💾 הפרומפט יופיע בדקה הקרובה...",
+  ],
+  generate_video: [
+    "🎬 שולח פרומפט ל-VEO 3.1...",
+    "⏳ VEO מייצר סרטון (1-2 דקות)...",
+    "📥 מוריד קובץ MP4...",
+    "💾 שומר ל-Vercel Blob + GeneratedVideo...",
+  ],
+};
+
 export default function BrainChatUI({ initialChatId }: { initialChatId?: string }) {
   const [chatId, setChatId] = useState<string | undefined>(initialChatId);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,6 +84,8 @@ export default function BrainChatUI({ initialChatId }: { initialChatId?: string 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [executingId, setExecutingId] = useState<string | null>(null);
+  const [executingStage, setExecutingStage] = useState<number>(0);
+  const [executingStages, setExecutingStages] = useState<string[]>([]);
   const [executed, setExecuted] = useState<Record<string, { text: string; url: string | null }>>({});
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +105,12 @@ export default function BrainChatUI({ initialChatId }: { initialChatId?: string 
   async function executeAction(messageId: string, action: any) {
     setExecutingId(messageId);
     setError(null);
+    const stages = ACTION_STAGES[action.type] || ["⏳ מבצע..."];
+    setExecutingStages(stages);
+    setExecutingStage(0);
+    const stageInterval = setInterval(() => {
+      setExecutingStage((s) => Math.min(s + 1, stages.length - 1));
+    }, action.type === "generate_video" ? 18000 : 4000);
     try {
       const res = await fetch("/api/brain/chat/execute", {
         method: "POST",
@@ -80,7 +126,10 @@ export default function BrainChatUI({ initialChatId }: { initialChatId?: string 
     } catch (e: any) {
       setError(String(e?.message || e));
     } finally {
+      clearInterval(stageInterval);
       setExecutingId(null);
+      setExecutingStage(0);
+      setExecutingStages([]);
     }
   }
 
@@ -171,17 +220,37 @@ export default function BrainChatUI({ initialChatId }: { initialChatId?: string 
                       <button
                         onClick={() => executeAction(m.id, action.action)}
                         disabled={executingId === m.id}
-                        className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-semibold text-xs px-3 py-1.5 rounded"
+                        className="bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-semibold text-xs px-3 py-1.5 rounded"
                       >
                         {executingId === m.id ? "⏳ מבצע..." : "✅ אשר ובצע"}
                       </button>
                       <button
                         onClick={() => setExecuted((e) => ({ ...e, [m.id]: { text: "בוטל", url: null } }))}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs px-3 py-1.5 rounded"
+                        disabled={executingId === m.id}
+                        className="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 border border-slate-700 text-xs px-3 py-1.5 rounded"
                       >
                         ❌ ביטול
                       </button>
                     </div>
+                    {executingId === m.id && executingStages.length > 0 && (
+                      <div className="mt-3 space-y-1.5">
+                        {executingStages.map((stage, i) => (
+                          <div
+                            key={i}
+                            className={`flex items-center gap-2 text-[11px] transition ${
+                              i < executingStage ? "text-emerald-400" :
+                              i === executingStage ? "text-amber-300 font-semibold" :
+                              "text-slate-600"
+                            }`}
+                          >
+                            <span className="w-3 text-center">
+                              {i < executingStage ? "✓" : i === executingStage ? "⏳" : "○"}
+                            </span>
+                            <span>{stage}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {done && (
