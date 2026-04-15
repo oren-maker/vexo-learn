@@ -15,7 +15,7 @@ async function pickDailyTopic(): Promise<string> {
     prisma.learnSource.findMany({ where: { addedBy: "daily-generation" }, orderBy: { createdAt: "desc" }, take: 10, select: { title: true } }),
   ]);
   const identity = latestBrain?.identity?.slice(0, 400) || "מערכת חדשה";
-  const nodes = recentNodes.map((n) => `${n.value}`).slice(0, 15).join(", ");
+  const nodes = recentNodes.map((n) => `${n.title}: ${n.body?.slice(0, 60) || ""}`).slice(0, 15).join(" | ");
   const recent = recentSources.map((s) => s.title).filter(Boolean).join(" | ");
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`;
