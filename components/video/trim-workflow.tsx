@@ -26,9 +26,11 @@ export default function TrimWorkflow() {
   const [scenes, setScenes] = useState<LocalScene[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "uploading" | "detecting" | "ready" | "rating" | "exporting">("idle");
+  const [detectMode, setDetectMode] = useState<"local" | "ai">("ai");
   const [progressPct, setProgressPct] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
   const [ratingJobId, setRatingJobId] = useState<string | null>(null);
+  const [aiDetectJobId, setAiDetectJobId] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   async function handleFile(f: File) {
@@ -45,7 +47,21 @@ export default function TrimWorkflow() {
       });
       setInputBlobUrl(blob.url);
 
-      // 2. Run scene detection in browser
+      // AI mode: hand off to server, polling SyncJob takes over
+      if (detectMode === "ai") {
+        setPhase("detecting"); setProgressPct(25); setProgressMsg("Gemini מנתח את הוידאו…");
+        const res = await fetch("/api/video/trim/ai-detect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...adminHeaders() },
+          body: JSON.stringify({ inputBlobUrl: blob.url, filename: f.name }),
+        });
+        const j = await res.json();
+        if (!res.ok || !j.ok) throw new Error(j.error || "ai-detect failed");
+        setAiDetectJobId(j.jobId);
+        return;
+      }
+
+      // 2. Local mode: run scene detection in browser
       setPhase("detecting"); setProgressPct(20); setProgressMsg("טוען FFmpeg.wasm…");
       const { detectScenes } = await import("@/lib/scene-detection");
       const result = await detectScenes(f, {
@@ -154,14 +170,63 @@ export default function TrimWorkflow() {
       {/* Step 1: Upload */}
       {phase === "idle" && (
         <Section step={1} title="העלאת סרטון">
+          {/* Detection engine picker */}
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setDetectMode("ai")}
+              className={`text-right p-3 rounded-lg border transition ${
+                detectMode === "ai" ? "border-purple-500 bg-purple-500/10" : "border-slate-700 bg-slate-950/40 hover:border-slate-600"
+              }`}
+            >
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                🤖 ניתוח AI (Gemini Video Understanding)
+                <span className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded">מומלץ</span>
+              </div>
+              <div className="text-xs text-slate-400 mt-1">Gemini מנתח את הוידאו עצמו ומחזיר סצנות + תיאור + דירוג בקריאה אחת. מדויק יותר. ~$0.005 לסרטון.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDetectMode("local")}
+              className={`text-right p-3 rounded-lg border transition ${
+                detectMode === "local" ? "border-cyan-500 bg-cyan-500/10" : "border-slate-700 bg-slate-950/40 hover:border-slate-600"
+              }`}
+            >
+              <div className="text-sm font-bold text-white">🧩 זיהוי מקומי (FFmpeg WASM)</div>
+              <div className="text-xs text-slate-400 mt-1">פועל בדפדפן, חינם, מתבסס על שינויי פיקסלים בלבד. דירוג ע״י Gemini בנפרד.</div>
+            </button>
+          </div>
+
           <input
             type="file"
             accept="video/mp4,video/webm,video/quicktime"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
             className="block w-full text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-400 file:cursor-pointer"
           />
-          <p className="text-xs text-slate-500 mt-2">העלה קובץ וידאו ⇒ FFmpeg.wasm יזהה אוטומטית את כל הסצנות (cuts) ויחלץ thumbnail לכל אחת.</p>
         </Section>
+      )}
+
+      {/* AI detection progress */}
+      {aiDetectJobId && (
+        <SyncProgress
+          jobId={aiDetectJobId}
+          steps={["מעלה את הוידאו ל-Gemini Files API", "Gemini מנתח את הוידאו (סצנות + דירוג)", "שומר סצנות", "הושלם"]}
+          onComplete={async (result) => {
+            setAiDetectJobId(null);
+            if (result?.sessionId) {
+              setSessionId(result.sessionId);
+              const r = await fetch(`/api/video/trim/sessions/${result.sessionId}`);
+              if (r.ok) {
+                const s = await r.json();
+                setScenes(s.scenes);
+                setTotalDur(s.durationSec);
+              }
+              setPhase("ready");
+              setProgressPct(100);
+            }
+          }}
+          onFailed={(e) => { setAiDetectJobId(null); setErr(e); setPhase("idle"); }}
+        />
       )}
 
       {/* Progress for upload + detection */}

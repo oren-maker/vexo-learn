@@ -10,7 +10,8 @@
     "app/api/cron/insights-snapshot/route.ts": { "maxDuration": 300 },
     "app/api/video/jobs/[id]/run/route.ts": { "maxDuration": 300 },
     "app/api/video/transitions/generate/route.ts": { "maxDuration": 300 },
-    "app/api/video/trim/sessions/[id]/rate/route.ts": { "maxDuration": 300 }
+    "app/api/video/trim/sessions/[id]/rate/route.ts": { "maxDuration": 300 },
+    "app/api/video/trim/ai-detect/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     { "path": "/api/cron/sync-seedance", "schedule": "0 3 * * *" },
