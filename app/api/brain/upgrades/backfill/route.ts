@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   // Idempotent read-only backfill — no admin required since it only copies existing
   // user messages into structured upgrade rows. Safe to re-run.
   const userMessages = await prisma.brainMessage.findMany({
-    where: { role: "user" },
+    where: { role: { in: ["user", "brain"] } },
     orderBy: { createdAt: "asc" },
     include: { chat: true },
   });
@@ -27,10 +27,19 @@ export async function POST(req: NextRequest) {
   let created = 0;
   const samples: Array<{ id: string; text: string }> = [];
 
+  const BRAIN_SUGGESTION_PATTERNS = /הצעה|שדרוג|מומלץ|כדאי|אפשר לשפר|צריך ש|רעיון|אוכל להציע|הייתי מציע|הייתי ממליץ|יכולת חדשה|פיצ'ר|feature|upgrade/i;
+
   for (const m of userMessages) {
     if (existingIds.has(m.id)) continue;
     if (m.content.length < 15) continue;
-    const hit = INSTRUCTION_PATTERNS.some((p) => m.content.includes(p));
+    let hit = false;
+    let label = m.role;
+    if (m.role === "user") {
+      hit = INSTRUCTION_PATTERNS.some((p) => m.content.includes(p));
+    } else if (m.role === "brain") {
+      hit = BRAIN_SUGGESTION_PATTERNS.test(m.content);
+      label = "brain-suggestion";
+    }
     if (!hit) continue;
 
     await prisma.brainUpgradeRequest.create({
@@ -38,12 +47,13 @@ export async function POST(req: NextRequest) {
         chatId: m.chatId,
         messageId: m.id,
         instruction: m.content.slice(0, 2000),
+        context: label,
         status: "pending",
-        priority: 3,
+        priority: m.role === "brain" ? 4 : 3,
       },
     });
     created++;
-    if (samples.length < 10) samples.push({ id: m.id, text: m.content.slice(0, 120) });
+    if (samples.length < 10) samples.push({ id: m.id, text: `[${label}] ${m.content.slice(0, 120)}` });
   }
 
   return NextResponse.json({ ok: true, created, scanned: userMessages.length, samples });

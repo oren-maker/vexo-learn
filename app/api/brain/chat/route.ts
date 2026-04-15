@@ -237,6 +237,22 @@ export async function POST(req: NextRequest) {
     const brainMsg = await prisma.brainMessage.create({
       data: { chatId: chat.id, role: "brain", content: reply },
     });
+    // Capture brain's own upgrade suggestions
+    const BRAIN_SUGGESTION = /הצעה|שדרוג|מומלץ|כדאי|הייתי מציע|הייתי ממליץ|יכולת חדשה|פיצ'ר/i;
+    if (BRAIN_SUGGESTION.test(reply) && reply.length > 40) {
+      try {
+        await prisma.brainUpgradeRequest.create({
+          data: {
+            chatId: chat.id,
+            messageId: brainMsg.id,
+            instruction: reply.slice(0, 2000),
+            context: "brain-suggestion",
+            status: "pending",
+            priority: 4,
+          },
+        });
+      } catch {}
+    }
     // Mark chat as un-summarized after new activity
     await prisma.brainChat.update({
       where: { id: chat.id },
