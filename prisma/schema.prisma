@@ -400,3 +400,39 @@ model GuideStageImage {
 
   @@index([stageId, order])
 }
+
+// ----- Daily Brain Cache (self-improving meta-learning) -----
+// Each day, a cron writes a snapshot: who am I, what did I learn today, what should I focus on tomorrow.
+// Built by reading the previous N days of caches + current corpus state (prompts + guides) and sending
+// to Gemini 2.5 Pro for synthesis. The identity grows over time.
+
+model DailyBrainCache {
+  id                String   @id @default(cuid())
+  date              DateTime @unique             // truncated to day (YYYY-MM-DD 00:00:00 UTC)
+
+  // Stat snapshot at boot-up
+  totalPrompts      Int
+  totalGuides       Int
+  totalNodes        Int
+  totalEmbeddings   Int      @default(0)
+
+  // Daily deltas
+  promptsAddedToday Int      @default(0)
+  guidesAddedToday  Int      @default(0)
+  upgradesToday     Int      @default(0)
+  imagesGenToday    Int      @default(0)
+  videosGenToday    Int      @default(0)
+
+  // Synthesis from Gemini Pro
+  identity          String   @db.Text             // "Today I am ___" (1 paragraph in Hebrew)
+  todayLearnings    Json                          // [{topic, insight, evidence}]
+  tomorrowFocus     Json                          // [{priority, action, why}]
+  weeklyArc         String?  @db.Text             // narrative of the past 7 days
+
+  // Self-rated metrics
+  maturityScore     Float?                        // 1-10 from Gemini's eval
+
+  createdAt         DateTime @default(now())
+
+  @@index([date])
+}

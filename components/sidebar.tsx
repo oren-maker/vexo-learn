@@ -18,8 +18,9 @@ const groups = [
     title: "למידה",
     icon: "🧠",
     items: [
+      { href: "/learn/brain", label: "המוח", icon: "🧠" },
       { href: "/learn/insights", label: "תובנות", icon: "📊" },
-      { href: "/learn/consciousness", label: "תודעה", icon: "🧠" },
+      { href: "/learn/consciousness", label: "תודעה", icon: "👁" },
       { href: "/learn", label: "Feed", icon: "📚" },
       { href: "/learn/sources", label: "ספרייה", icon: "🎬" },
       { href: "/learn/knowledge", label: "Knowledge", icon: "🧠" },
