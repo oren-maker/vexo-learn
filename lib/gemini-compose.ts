@@ -178,16 +178,22 @@ export async function suggestSimilar(
   const brief = `Create ${count} distinct variations inspired by this prompt (different subjects or scenes, same style/structure):\n\n${source.prompt.slice(0, 800)}`;
 
   const results: ComposedPrompt[] = [];
+  const errors: string[] = [];
   const t0 = Date.now();
   for (let i = 0; i < count; i++) {
     if (onProgress) await onProgress(i, count, Date.now() - t0);
     try {
       const c = await composePrompt(brief);
       results.push(c);
-    } catch {
-      // continue on individual failure
+    } catch (e: any) {
+      const msg = String(e?.message || e).slice(0, 200);
+      errors.push(`#${i + 1}: ${msg}`);
+      console.error(`[suggestSimilar] variation ${i + 1} failed:`, msg);
     }
   }
   if (onProgress) await onProgress(count, count, Date.now() - t0);
+  if (results.length === 0 && errors.length > 0) {
+    throw new Error(errors.join(" | "));
+  }
   return results;
 }
