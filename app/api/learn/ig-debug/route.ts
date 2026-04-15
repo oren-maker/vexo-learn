@@ -40,7 +40,14 @@ export async function GET(req: NextRequest) {
           ogImage: html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1]?.slice(0, 200) || null,
           ogDesc: html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1]?.slice(0, 200) || null,
           jsonVideo: html.match(/"video_url":"([^"]+)"/)?.[1]?.slice(0, 200) || null,
+          videoVersions: html.match(/"video_versions":\[\{[^}]*"url":"([^"]+)"/)?.[1]?.slice(0, 200) || null,
+          playbackUrl: html.match(/"playback_url":"([^"]+)"/)?.[1]?.slice(0, 200) || null,
+          videoDashManifest: html.match(/"video_dash_manifest":"[^"]+/)?.[0]?.slice(0, 100) || null,
+          contextJson: html.match(/window\._sharedData\s*=\s*(\{[^<]+\})/)?.[1]?.slice(0, 300) || null,
         };
+        // sample text content (first 1500 of body without scripts)
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
+        item.bodySample = bodyMatch.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " ").slice(0, 800);
       }
       out[label] = item;
     } catch (e: any) {
