@@ -1,47 +1,46 @@
-// Generic Gemini Flash translation + guide-specific translateGuideToLang.
+// Generic Gemini translation via direct REST.
+// Uses gemini-2.0-flash (no chain-of-thought / thinking mode) for fast, deterministic translation.
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "./db";
 import { logUsage } from "./usage-tracker";
 import { langName } from "./guide-languages";
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "gemini-flash-latest";
-
-function buildSystem(targetLang: string): string {
-  return `You are a professional translator. Translate the user's text to ${langName(targetLang)} (${targetLang}).
-Rules:
-- Preserve markdown formatting, code blocks, URLs, and emojis exactly.
-- Output ONLY the translation. No commentary, no preamble.
-- If the input is already in ${targetLang}, return it unchanged.
-- Keep proper nouns in their original form unless conventionally translated.`;
-}
+const MODEL = "gemini-2.0-flash";
 
 export async function translateText(text: string, targetLang: string): Promise<string> {
   if (!API_KEY || !text.trim()) return text;
   try {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: MODEL,
-      systemInstruction: buildSystem(targetLang),
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 4096,
-        thinkingConfig: { thinkingBudget: 0 },
-      } as any,
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+    const body = {
+      systemInstruction: {
+        parts: [{
+          text: `You are a translator. Output ONLY the translated text, in ${langName(targetLang)}. Preserve markdown, URLs, emojis, code blocks. No explanations, no commentary, no thinking, no quotes around the result.`,
+        }],
+      },
+      contents: [{ role: "user", parts: [{ text: text.slice(0, 12000) }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
     });
-    const result = await model.generateContent(
-      `Translate this text to ${langName(targetLang)}. Output ONLY the translation:\n\n${text.slice(0, 12000)}`,
-    );
-    const u = result.response.usageMetadata;
+    if (!res.ok) {
+      console.warn("[translate]", res.status, (await res.text()).slice(0, 200));
+      return text;
+    }
+    const json: any = await res.json();
     await logUsage({
       model: MODEL,
       operation: "translate",
-      inputTokens: u?.promptTokenCount || 0,
-      outputTokens: u?.candidatesTokenCount || 0,
+      inputTokens: json.usageMetadata?.promptTokenCount || 0,
+      outputTokens: json.usageMetadata?.candidatesTokenCount || 0,
       meta: { targetLang },
     });
-    return result.response.text().trim();
+    const out = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return out.trim();
   } catch (e: any) {
     console.warn("[translate] failed:", String(e?.message || e).slice(0, 200));
     return text;
