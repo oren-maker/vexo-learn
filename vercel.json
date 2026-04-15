@@ -13,11 +13,13 @@
     "app/api/video/trim/sessions/[id]/rate/route.ts": { "maxDuration": 300 },
     "app/api/video/trim/ai-detect/route.ts": { "maxDuration": 300 },
     "app/api/cron/daily-brain/route.ts": { "maxDuration": 300 },
+    "app/api/cron/daily-generation/route.ts": { "maxDuration": 300 },
     "app/api/learn/brain/refresh/route.ts": { "maxDuration": 300 }
   },
   "crons": [
     { "path": "/api/cron/sync-seedance", "schedule": "0 3 * * *" },
     { "path": "/api/cron/insights-snapshot", "schedule": "0 * * * *" },
-    { "path": "/api/cron/daily-brain", "schedule": "0 1 * * *" }
+    { "path": "/api/cron/daily-brain", "schedule": "0 1 * * *" },
+    { "path": "/api/cron/daily-generation", "schedule": "0 2 * * *" }
   ]
 }
