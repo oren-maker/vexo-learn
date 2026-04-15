@@ -4,6 +4,7 @@ import StatusBadge from "@/components/status-badge";
 import RefreshButton from "@/components/refresh-button";
 import DeleteSourceButton from "@/components/delete-source-button";
 import StarRating from "@/components/star-rating";
+import ModuleHeader from "@/components/module-header";
 
 export const dynamic = "force-dynamic";
 
@@ -27,17 +28,26 @@ function isManualAddedBy(addedBy: string | null): boolean {
 export default async function SourcesManager({
   searchParams,
 }: {
-  searchParams: { page?: string; filter?: string; minRating?: string; sort?: string; category?: string };
+  searchParams: { page?: string; filter?: string; minRating?: string; sort?: string; category?: string; q?: string };
 }) {
   const page = Math.max(1, Number(searchParams.page || 1));
   const filter = searchParams.filter || "all";
   const category = searchParams.category || "";
   const minRating = Number(searchParams.minRating || 0);
   const sort = searchParams.sort || "createdAt";
+  const q = (searchParams.q || "").trim();
   const skip = (page - 1) * PAGE_SIZE;
 
   const where: any = filter === "all" ? {} : { addedBy: { contains: filter, mode: "insensitive" as const } };
   if (minRating >= 1 && minRating <= 5) where.userRating = { gte: minRating };
+  if (q) {
+    where.AND = (where.AND || []).concat([{
+      OR: [
+        { prompt: { contains: q, mode: "insensitive" as const } },
+        { title: { contains: q, mode: "insensitive" as const } },
+      ],
+    }]);
+  }
 
   // Category-based filter (AI / imported / manual / analyzed / with-video)
   if (category === "ai") {
@@ -113,6 +123,32 @@ export default async function SourcesManager({
           </Link>
         </div>
       </header>
+
+      <ModuleHeader
+        title="📚 ספרייה"
+        operations={["compose", "improve", "video-analysis", "image-gen"]}
+        logsTab="usage"
+      />
+
+      <form action="/learn/sources" className="mb-6">
+        <div className="relative">
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="🔍 חפש בכותרת או בפרומפט..."
+            className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500/60 rounded-lg px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+          {q && (
+            <Link
+              href="/learn/sources"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-red-400"
+            >
+              ✕ נקה
+            </Link>
+          )}
+        </div>
+      </form>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <StatCard value={total} label="פרומפטים במאגר" accent="white" hint="סה״כ LearnSources" href="/learn/sources?category=all" active={category === "all" || (!category && filter === "all")} />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import BrainRefreshButton from "@/components/brain-refresh-button";
 import ConnectedSystemsBanner from "@/components/brain/connected-systems-banner";
+import ModuleHeader from "@/components/module-header";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function BrainPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
+      <ModuleHeader title="🧠 המוח" operations={["knowledge-extract", "brain-chat"]} logsTab="snapshots" />
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-white">🧠 המוח</h1>

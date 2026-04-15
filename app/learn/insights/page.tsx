@@ -2,6 +2,7 @@ import Link from "next/link";
 import { computeCorpusInsights } from "@/lib/corpus-insights";
 import { prisma } from "@/lib/db";
 import InsightsFreshness from "@/components/insights-freshness";
+import ModuleHeader from "@/components/module-header";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,6 +26,7 @@ export default async function InsightsPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <ModuleHeader title="👁 תובנות" operations={["knowledge-extract", "insights-snapshot" as any]} logsTab="snapshots" />
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-white">תובנות על המאגר</h1>

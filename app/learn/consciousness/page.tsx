@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import TriggerImprovementButton from "./trigger-button";
+import ModuleHeader from "@/components/module-header";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -61,6 +62,7 @@ export default async function ConsciousnessPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <ModuleHeader title="🧠 תודעה" operations={["knowledge-extract", "insights-snapshot" as any, "auto-improve" as any]} logsTab="improvements" />
       <header className="mb-6">
         <h1 className="text-3xl font-bold text-white">🧠 תודעה</h1>
         <p className="text-sm text-slate-400 mt-1">

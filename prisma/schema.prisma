@@ -140,8 +140,10 @@ model InsightsSnapshot {
   data          Json      // full CorpusInsights object
   delta         Json?     // diff vs previous snapshot (null for first)
   summary       String?   @db.Text // human-readable Hebrew change summary
+  kind          String   @default("hourly") // hourly | daily-report | daily-consciousness
 
   @@index([takenAt])
+  @@index([kind])
 }
 
 model PromptVersion {
