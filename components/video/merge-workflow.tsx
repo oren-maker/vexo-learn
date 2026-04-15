@@ -18,7 +18,7 @@ type LocalClip = {
   transitionDur: number;
 };
 
-type AudioMode = "keep" | "mute" | "track";
+type AudioMode = "keep" | "mute" | "track" | "narration";
 
 export default function MergeWorkflow() {
   const router = useRouter();
@@ -27,6 +27,9 @@ export default function MergeWorkflow() {
   const [uploadProgress, setUploadProgress] = useState<{ name: string; pct: number } | null>(null);
   const [audioMode, setAudioMode] = useState<AudioMode>("keep");
   const [audioTrackUrl, setAudioTrackUrl] = useState<string | null>(null);
+  const [narrationText, setNarrationText] = useState("");
+  const [narrationVoice, setNarrationVoice] = useState<"Aoede" | "Charon" | "Fenrir" | "Kore" | "Puck">("Aoede");
+  const [narrationGenerating, setNarrationGenerating] = useState(false);
   const [engine, setEngine] = useState<"wasm" | "shotstack">("wasm");
   const [running, setRunning] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
@@ -247,8 +250,10 @@ export default function MergeWorkflow() {
         }
       }
 
+      // Narration mode reuses the "track" path (TTS audio URL replaces the original)
+      const effectiveAudioMode: "keep" | "mute" | "track" = audioMode === "narration" ? "track" : (audioMode as any);
       const blob = await mergeClipsInBrowser(mergeClipList, {
-        audioMode,
+        audioMode: effectiveAudioMode,
         audioTrackUrl,
         onProgress: (pct, msg) => { setProgressPct(40 + pct * 0.55); setProgressMsg(msg); },
       });
@@ -398,6 +403,63 @@ export default function MergeWorkflow() {
                   className="text-xs text-slate-300"
                 />
                 {audioTrackUrl && <div className="text-[11px] text-emerald-300 mt-1">✓ פס קול הועלה</div>}
+              </div>
+            )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={audioMode === "narration"} onChange={() => setAudioMode("narration")} />
+              <span className="text-white">🎙 קריינות AI (Gemini TTS)</span>
+            </label>
+            {audioMode === "narration" && (
+              <div className="mt-2 mr-6 space-y-2">
+                <textarea
+                  value={narrationText}
+                  onChange={(e) => setNarrationText(e.target.value)}
+                  placeholder="טקסט הקריינות (עברית/אנגלית, עד ~4000 תווים)"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white"
+                />
+                <div className="flex items-center gap-2">
+                  <select
+                    value={narrationVoice}
+                    onChange={(e) => setNarrationVoice(e.target.value as any)}
+                    className="px-2 py-1 bg-slate-950 border border-slate-700 rounded text-white text-xs"
+                  >
+                    <option value="Aoede">Aoede (נשי, חמים)</option>
+                    <option value="Kore">Kore (נשי, רגוע)</option>
+                    <option value="Charon">Charon (זכרי, עמוק)</option>
+                    <option value="Fenrir">Fenrir (זכרי, חזק)</option>
+                    <option value="Puck">Puck (זכרי, צעיר)</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!narrationText.trim() || narrationGenerating}
+                    onClick={async () => {
+                      setNarrationGenerating(true); setErr("");
+                      try {
+                        const res = await fetch("/api/video/tts", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...adminHeaders() },
+                          body: JSON.stringify({ text: narrationText, voice: narrationVoice }),
+                        });
+                        const j = await res.json();
+                        if (!res.ok || !j.ok) throw new Error(j.error || "TTS failed");
+                        setAudioTrackUrl(j.blobUrl);
+                      } catch (e: any) {
+                        setErr(e?.message || "TTS error");
+                      } finally {
+                        setNarrationGenerating(false);
+                      }
+                    }}
+                    className="text-xs bg-purple-500 hover:bg-purple-400 text-white font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                  >
+                    {narrationGenerating ? "🔄 מסנתז…" : "🎙 חולל קריינות"}
+                  </button>
+                </div>
+                {audioTrackUrl && audioMode === "narration" && (
+                  <div className="text-[11px] text-emerald-300">
+                    ✓ קריינות מוכנה — <audio controls src={audioTrackUrl} className="inline-block align-middle h-6" />
+                  </div>
+                )}
               </div>
             )}
           </div>

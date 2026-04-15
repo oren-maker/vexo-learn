@@ -28,7 +28,7 @@ export default function EditTimeline({
 }: {
   clips: Clip[];
   transitions?: Transition[];
-  audioMode?: "keep" | "mute" | "track";
+  audioMode?: "keep" | "mute" | "track" | "narration";
   audioTrackUrl?: string | null;
   techSpecs?: { resolution: string; fps: number; codec: string; aspectRatio: string };
 }) {
@@ -165,6 +165,7 @@ export default function EditTimeline({
           "bg-blue-500/15 text-blue-200"
         }`}>
           {audioMode === "mute" ? "🔇 מושתק" :
+           audioMode === "narration" ? `🎙 קריינות AI (Gemini TTS)${audioTrackUrl ? " ✓" : " — חסר"}` :
            audioMode === "track" ? `🎵 פס קול חיצוני${audioTrackUrl ? "" : " (לא הועלה)"}` :
            "🎤 אודיו מקורי של הקליפים"}
         </div>

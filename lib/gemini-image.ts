@@ -56,16 +56,23 @@ async function buildStructuredImagePrompt(videoPrompt: string): Promise<string> 
   }
 }
 
+export type ImageEngine = "nano-banana" | "imagen-4";
+
 export async function generateImageFromPrompt(
   prompt: string,
   sourceId?: string,
+  engine: ImageEngine = "nano-banana",
 ): Promise<{ blobUrl: string; usdCost: number; model: string }> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
   const structured = await buildStructuredImagePrompt(prompt);
 
-  // Direct REST call — the @google/generative-ai SDK doesn't reliably forward
-  // responseModalities for image-output models. Verified working via curl.
+  // ----- Imagen 4 path (uses :predict, returns predictions[].bytesBase64Encoded) -----
+  if (engine === "imagen-4") {
+    return generateWithImagen4(structured, sourceId);
+  }
+
+  // ----- nano-banana path (uses :generateContent with responseModalities) -----
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
   const body = {
     contents: [{ parts: [{ text: structured }] }],
@@ -150,4 +157,53 @@ export async function generateImageFromPrompt(
   }
 
   return { blobUrl: blob.url, usdCost, model: MODEL };
+}
+
+// ----- Imagen 4 implementation -----
+const IMAGEN_MODEL = "imagen-4.0-generate-001";
+
+async function generateWithImagen4(structured: string, sourceId?: string): Promise<{ blobUrl: string; usdCost: number; model: string }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict?key=${API_KEY}`;
+  const body = {
+    instances: [{ prompt: structured.slice(0, 4000) }],
+    parameters: { sampleCount: 1, aspectRatio: "1:1" },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(90_000),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    await logUsage({ model: IMAGEN_MODEL, operation: "image-gen", sourceId, errored: true, meta: { status: res.status, error: txt.slice(0, 300) } });
+    throw new Error(`Imagen 4 ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  const json: any = await res.json();
+  const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
+  if (!b64) {
+    await logUsage({ model: IMAGEN_MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: "no image in response" } });
+    throw new Error(`Imagen 4 returned no image — ${JSON.stringify(json).slice(0, 200)}`);
+  }
+  const buffer = Buffer.from(b64, "base64");
+  const filename = `prompt-images/imagen4-${sourceId || Date.now()}-${Date.now()}.png`;
+  const blob = await put(filename, buffer, { access: "public", contentType: "image/png" });
+
+  await logUsage({
+    model: IMAGEN_MODEL,
+    operation: "image-gen",
+    inputTokens: Math.round(structured.length / 4),
+    outputTokens: 0,
+    imagesOut: 1,
+    sourceId,
+    meta: { byteSize: buffer.length, engine: "imagen-4" },
+  });
+
+  const usdCost = 0.04;
+  if (sourceId) {
+    await prisma.generatedImage.create({
+      data: { sourceId, blobUrl: blob.url, model: IMAGEN_MODEL, usdCost, promptHead: structured.slice(0, 200) },
+    }).catch(() => {});
+  }
+  return { blobUrl: blob.url, usdCost, model: IMAGEN_MODEL };
 }

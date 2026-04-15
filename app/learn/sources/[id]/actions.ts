@@ -58,11 +58,11 @@ export async function generateVideoAction(
   }
 }
 
-export async function generateImageAction(sourceId: string) {
+export async function generateImageAction(sourceId: string, engine: "nano-banana" | "imagen-4" = "nano-banana") {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) return { ok: false as const, error: "source not found" };
   try {
-    const { blobUrl, usdCost } = await generateImageFromPrompt(source.prompt, sourceId);
+    const { blobUrl, usdCost } = await generateImageFromPrompt(source.prompt, sourceId, engine);
     // Save the generated image as the source thumbnail if it doesn't have one
     await prisma.learnSource.update({
       where: { id: sourceId },
