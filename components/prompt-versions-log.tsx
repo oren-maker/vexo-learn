@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/db";
+import PromptDiffViewer from "@/components/prompt-diff-viewer";
 
 export default async function PromptVersionsLog({ sourceId }: { sourceId: string }) {
-  const versions = await prisma.promptVersion.findMany({
-    where: { sourceId },
-    orderBy: { version: "desc" },
-    take: 20,
-  });
+  const [versions, source] = await Promise.all([
+    prisma.promptVersion.findMany({
+      where: { sourceId },
+      orderBy: { version: "desc" },
+      take: 20,
+    }),
+    prisma.learnSource.findUnique({ where: { id: sourceId }, select: { prompt: true } }),
+  ]);
 
   if (versions.length === 0) return null;
+  const currentPrompt = source?.prompt || "";
 
   return (
     <div className="bg-slate-900/60 border border-amber-500/30 rounded-xl p-4 mb-6">
@@ -52,6 +57,12 @@ export default async function PromptVersionsLog({ sourceId }: { sourceId: string
                       💡 {v.reason}
                     </span>
                   )}
+                  <PromptDiffViewer
+                    oldPrompt={v.prompt}
+                    newPrompt={currentPrompt}
+                    oldLabel={`v${v.version}`}
+                    newLabel="נוכחי"
+                  />
                 </div>
               </summary>
               <div className="p-3 border-t border-slate-800">

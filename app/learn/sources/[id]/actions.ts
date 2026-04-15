@@ -7,9 +7,10 @@ import { generatePromptWithClaude } from "@/lib/claude-prompt";
 import { generateImageFromPrompt } from "@/lib/gemini-image";
 import { startVideoGeneration, runVideoGeneration, type VeoModel } from "@/lib/gemini-video-gen";
 import { adaptPromptForVEO } from "@/lib/adapt-for-veo";
-import { snapshotCurrentVersion } from "@/lib/prompt-versioning";
+import { snapshotCurrentVersion, computeTextDiff } from "@/lib/prompt-versioning";
 import { revalidatePath } from "next/cache";
 import { waitUntil } from "@vercel/functions";
+import { updateJob } from "@/lib/sync-jobs";
 
 export async function adaptPromptForVEOAction(sourceId: string, shrink = false) {
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
@@ -176,4 +177,109 @@ export async function retryAnalysisAction(sourceId: string) {
   revalidatePath(`/learn/sources/${sourceId}`);
   revalidatePath("/learn/sources");
   return { ok: true as const, engine, title: analyzed.title };
+}
+
+// Re-pull the source URL and run a fresh analysis with the current (improved) prompt strategy.
+// The previous prompt is snapshotted to PromptVersion so the user can see the diff.
+// Designed to run inside `waitUntil` from a SyncJob route — every step calls updateJob.
+export async function regenerateFromUrl(sourceId: string, jobId?: string): Promise<{
+  ok: boolean;
+  newVersion?: number;
+  diff?: any;
+  error?: string;
+}> {
+  const tick = async (step: string, msg?: string, completed?: number, total?: number) => {
+    if (jobId) await updateJob(jobId, { currentStep: step, currentMessage: msg, ...(completed != null ? { completedItems: completed } : {}), ...(total != null ? { totalItems: total } : {}) });
+  };
+
+  const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
+  if (!source) return { ok: false, error: "source not found" };
+  if (!source.url) return { ok: false, error: "אין URL מקור — אי אפשר לשחזר" };
+
+  await tick("שומר גרסה קודמת", `שומר את הפרומפט הנוכחי כ-snapshot`, 0, 4);
+  const oldPrompt = source.prompt;
+  const newVersion = await snapshotCurrentVersion(sourceId, "regenerate-from-url", "regenerated from source URL");
+
+  await tick("מושך כיתוב + תמונה מהמקור", source.url, 1, 4);
+  let caption: string | null = null;
+  let thumbnail: string | null = source.thumbnail;
+  try {
+    if (/instagram\.com/.test(source.url)) {
+      const ig = await extractInstagram(source.url);
+      caption = ig.caption;
+      if (ig.thumbnail) thumbnail = ig.thumbnail;
+    } else {
+      // Non-IG URL — for now we just reuse existing prompt as the "caption". Future: add other extractors.
+      caption = oldPrompt.slice(0, 1500);
+    }
+  } catch (e: any) {
+    return { ok: false, error: `מיצוי נכשל: ${String(e.message || e).slice(0, 200)}` };
+  }
+  if (!caption && !thumbnail) {
+    return { ok: false, error: "לא הצלחתי לחלץ כיתוב או תמונה — נסה שוב מאוחר יותר" };
+  }
+
+  await tick("Gemini בונה פרומפט חדש", "ניתוח caption-first multi-scene", 2, 4);
+  let analyzed;
+  try {
+    analyzed = await generatePromptWithClaude(caption, thumbnail);
+  } catch (e: any) {
+    return { ok: false, error: `Gemini נכשל: ${String(e.message || e).slice(0, 200)}` };
+  }
+
+  await tick("שומר ומחשב diff", "מחליף analysis ומחשב הבדלים", 3, 4);
+  const diff = computeTextDiff(oldPrompt, analyzed.generatedPrompt);
+
+  // Update PromptVersion with the diff (so the log shows +/- stats)
+  const latest = await prisma.promptVersion.findFirst({
+    where: { sourceId, version: newVersion },
+  });
+  if (latest) {
+    await prisma.promptVersion.update({
+      where: { id: latest.id },
+      data: { diff: diff as any },
+    });
+  }
+
+  // Replace analysis + knowledge nodes
+  await prisma.videoAnalysis.deleteMany({ where: { sourceId } });
+  const analysis = await prisma.videoAnalysis.create({
+    data: {
+      sourceId,
+      description: analyzed.captionEnglish || analyzed.generatedPrompt.slice(0, 300),
+      techniques: analyzed.techniques,
+      howTo: [],
+      tags: analyzed.tags,
+      style: analyzed.style,
+      mood: analyzed.mood,
+      difficulty: null,
+      insights: [],
+      promptAlignment: null,
+      rawGemini: JSON.stringify({ engine: "regenerate-from-url", ...analyzed }),
+    },
+  });
+  const nodes = analyzed.techniques.map((t: string) => ({
+    type: "technique",
+    title: t.slice(0, 120),
+    body: t,
+    tags: [...analyzed.tags, analyzed.style || ""].filter(Boolean),
+    confidence: 0.85,
+    analysisId: analysis.id,
+  }));
+  if (nodes.length > 0) await prisma.knowledgeNode.createMany({ data: nodes });
+
+  await prisma.learnSource.update({
+    where: { id: sourceId },
+    data: {
+      prompt: analyzed.generatedPrompt,
+      title: analyzed.title || source.title,
+      thumbnail: thumbnail || source.thumbnail,
+      status: "complete",
+      error: null,
+    },
+  });
+
+  await tick("הושלם", `גרסה v${newVersion} נשמרה`, 4, 4);
+  revalidatePath(`/learn/sources/${sourceId}`);
+  return { ok: true, newVersion, diff };
 }

@@ -13,6 +13,7 @@ import GeneratedVideosGallery from "@/components/generated-videos-gallery";
 import PromptLineage from "@/components/prompt-lineage";
 import PromptVersionsLog from "@/components/prompt-versions-log";
 import StarRating from "@/components/star-rating";
+import RegenerateFromUrlButton from "@/components/regenerate-from-url-button";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function SourceDetail({ params }: { params: { id: string } 
           >
             📂 לוגים של הפרומפט
           </Link>
+          <RegenerateFromUrlButton sourceId={source.id} hasUrl={!!source.url} />
         </div>
         <div className="flex gap-2 flex-wrap">
           <GenerateImageButton sourceId={source.id} />
