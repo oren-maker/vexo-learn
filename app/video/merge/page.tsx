@@ -8,7 +8,7 @@ export default function MergePage() {
       <header className="mb-6">
         <h1 className="text-3xl font-bold text-white">🎬 מיזוג קליפים</h1>
         <p className="text-sm text-slate-400 mt-1">
-          העלה כמה קליפים, סדר אותם, הגדר טרנזישנים ואודיו, ולחץ "מזג" — תקבל סרטון אחד מאוחד.
+          העלה כמה קליפים, סדר אותם, הגדר טרנזישנים ואודיו, ולחץ &quot;מזג&quot; — תקבל סרטון אחד מאוחד.
         </p>
       </header>
       <MergeWorkflow />
