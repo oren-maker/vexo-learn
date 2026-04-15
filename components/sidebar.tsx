@@ -35,6 +35,14 @@ const groups = [
     ],
   },
   {
+    title: "וידאו",
+    icon: "🎥",
+    items: [
+      { href: "/video", label: "סקירה", icon: "🎞️" },
+      { href: "/video/merge", label: "מיזוג קליפים", icon: "🎬" },
+    ],
+  },
+  {
     title: "ניהול",
     icon: "⚙️",
     items: [

@@ -1,0 +1,84 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { prisma } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+export default async function JobResultPage({ params }: { params: { id: string } }) {
+  const job = await prisma.mergeJob.findUnique({
+    where: { id: params.id },
+    include: { clips: { orderBy: { order: "asc" } } },
+  });
+  if (!job) notFound();
+
+  const duration = job.completedAt ? Math.round((job.completedAt.getTime() - job.createdAt.getTime()) / 1000) : null;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-5 flex items-center gap-3 text-xs">
+        <Link href="/video" className="text-slate-400 hover:text-cyan-400">← חזרה לפרויקטים</Link>
+        <Link href="/video/merge" className="text-slate-400 hover:text-cyan-400">+ פרויקט חדש</Link>
+      </div>
+
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-white">פרויקט {job.id.slice(0, 8)}…</h1>
+        <p className="text-xs text-slate-400 mt-1">
+          {new Date(job.createdAt).toLocaleString("he-IL")} · engine: {job.engine}
+          {duration !== null && ` · משך עיבוד ${duration}s`}
+        </p>
+      </header>
+
+      {job.status === "complete" && job.outputUrl && (
+        <section className="mb-6 bg-slate-900/60 border border-emerald-500/30 rounded-xl p-5">
+          <video src={job.outputUrl} controls className="w-full rounded-lg" />
+          <div className="mt-3 flex items-center justify-between">
+            <div className="text-sm text-slate-300">
+              {job.outputDuration ? `${job.outputDuration.toFixed(1)}s` : ""} · {job.clips.length} clips
+              {job.costUsd > 0 && ` · עלות $${job.costUsd.toFixed(3)}`}
+            </div>
+            <a
+              href={job.outputUrl}
+              download
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm"
+            >
+              ⬇ הורד MP4
+            </a>
+          </div>
+        </section>
+      )}
+
+      {job.status === "failed" && (
+        <section className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-5">
+          <div className="text-red-300 font-bold mb-1">⚠ הרינדור נכשל</div>
+          <div className="text-xs text-slate-400 whitespace-pre-wrap">{job.errorMsg || "שגיאה לא ידועה"}</div>
+        </section>
+      )}
+
+      {job.status !== "complete" && job.status !== "failed" && (
+        <section className="mb-6 bg-slate-900/60 border border-amber-500/30 rounded-xl p-5">
+          <div className="text-amber-300 text-sm">⚙️ סטטוס: {job.status}</div>
+          <div className="text-xs text-slate-500 mt-1">חזור בעוד דקה ורענן את הדף</div>
+        </section>
+      )}
+
+      <section>
+        <h2 className="text-lg font-bold text-white mb-3">קליפים בפרויקט ({job.clips.length})</h2>
+        <ul className="space-y-2">
+          {job.clips.map((c, i) => (
+            <li key={c.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-sm flex items-center gap-3">
+              <span className="text-cyan-300 font-mono w-6">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-white truncate">{c.filename}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {c.durationSec ? `${c.durationSec.toFixed(1)}s` : ""}
+                  {c.trimStart != null && c.trimEnd != null && ` · trim ${c.trimStart}→${c.trimEnd}`}
+                  {c.transition && ` · ${c.transition} ${c.transitionDur}s →`}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}

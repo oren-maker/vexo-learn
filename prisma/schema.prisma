@@ -210,3 +210,42 @@ model GeneratedVideo {
   @@index([status])
   @@index([createdAt])
 }
+
+// ----- Video Merger (standalone module) -----
+
+model MergeJob {
+  id             String   @id @default(cuid())
+  status         String   @default("draft")  // draft | uploading | processing | complete | failed
+  engine         String   @default("wasm")   // wasm | shotstack | ai
+  clips          MergeClip[]
+  outputUrl      String?
+  outputDuration Float?
+  audioMode      String   @default("keep")   // keep | mute | track
+  audioTrackUrl  String?
+  errorMsg       String?  @db.Text
+  costUsd        Float    @default(0)
+  shotstackId    String?  // external render id when engine=shotstack
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model MergeClip {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           MergeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  blobUrl       String
+  filename      String
+  order         Int
+  trimStart     Float?
+  trimEnd       Float?
+  transition    String?  // null|fade|dissolve|cut — applied to the gap with the NEXT clip
+  transitionDur Float?
+  durationSec   Float?
+  sizeBytes     Int?
+  createdAt     DateTime @default(now())
+
+  @@index([jobId, order])
+}
