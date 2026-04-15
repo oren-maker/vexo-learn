@@ -41,6 +41,40 @@ export default async function VideoLanding() {
         />
       </section>
 
+      <section className="mb-8 bg-slate-900/40 border border-slate-800 rounded-xl p-5">
+        <h2 className="text-lg font-bold text-white mb-3">מה ההבדל בין שלושת המצבים?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <div className="text-cyan-400 font-bold mb-2">🎬 מיזוג קליפים</div>
+            <p className="text-slate-300 leading-relaxed">
+              העלאת כמה קליפים, סידור בציר זמן, חיתוך בתוך כל קליפ, הוספת טרנזישנים פשוטים (fade / cut) ופלט אחד מאוחד.
+              זה עורך וידאו קלאסי — אתה שולט בסדר, זמנים ומעברים. ללא עלות AI.
+            </p>
+          </div>
+          <div>
+            <div className="text-cyan-400 font-bold mb-2">✨ AI Transitions (Luma Ray-2)</div>
+            <p className="text-slate-300 leading-relaxed">
+              אותו דף מיזוג, אבל במקום טרנזישן פשוט — בוחרים &quot;AI Luma&quot; ב-dropdown של ה-transition וה-AI של
+              Luma Ray-2 מייצר מעבר חלק וחכם בין קליפים (morph / blend / continuation).
+              עלות API נוספת לכל מעבר.
+            </p>
+          </div>
+          <div>
+            <div className="text-cyan-400 font-bold mb-2">✂️ טרים מתקדם</div>
+            <p className="text-slate-300 leading-relaxed">
+              מעלים סרטון אחד ארוך וה-AI מזהה אוטומטית חתכים (Scene Detection) ומחלק לסצנות.
+              Gemini Flash קורא את התוכן של כל סצנה ונותן ציון — אתה רואה את כל הסצנות עם הציונים ומחליט איזו לשמור.
+              חיתוך חכם במקום ידני.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400 leading-relaxed">
+          <strong className="text-slate-300">בקיצור:</strong>{" "}
+          מיזוג = מחברים קליפים ידנית · AI Transitions = אותו מיזוג + מעברים מ-AI · טרים מתקדם = AI חותך סרטון ארוך לסצנות מדורגות.
+          שני הראשונים חיים באותו דף (<span className="text-cyan-400 font-mono">/video/merge</span>), השלישי בדף נפרד (<span className="text-cyan-400 font-mono">/video/trim</span>).
+        </div>
+      </section>
+
       <section>
         <h2 className="text-lg font-bold text-white mb-3">פרויקטים אחרונים</h2>
         {jobs.length === 0 ? (
