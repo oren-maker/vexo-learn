@@ -184,6 +184,22 @@ export default async function InsightsPage() {
         </div>
       </Section>
 
+      {/* Strategic insights from Gemini 2.5 Pro */}
+      {insights.strategicInsights && insights.strategicInsights.length > 0 && (
+        <Section title="🧠 תובנות אסטרטגיות מ-Gemini 2.5 Pro" subtitle="ניתוח עומק מבוסס AI על בסיס כל הסטטיסטיקות מעלה — מה לעשות עכשיו">
+          <div className="bg-gradient-to-br from-purple-500/10 to-cyan-500/5 border border-purple-500/30 rounded-xl p-5">
+            <ol className="space-y-3">
+              {insights.strategicInsights.map((s, i) => (
+                <li key={i} className="flex gap-3 items-start">
+                  <span className="text-purple-300 font-black text-lg shrink-0 leading-none">{i + 1}</span>
+                  <span className="text-slate-100 text-sm leading-relaxed">{s}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </Section>
+      )}
+
       {/* Upgrade insights */}
       {insights.upgrades && insights.upgrades.totalUpgrades > 0 && (
         <Section title={`מה למדנו משדרוגי פרומפטים (${insights.upgrades.totalUpgrades} שדרוגים)`} subtitle="ניתוח חוצה-גרסאות של ה-PromptVersions — מה הוסיפו, מה הסירו, ואילו סעיפים צמחו">

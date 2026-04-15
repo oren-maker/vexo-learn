@@ -73,6 +73,7 @@ export type CorpusInsights = {
   topPerformers: TopPerformer[];
   derivedRules: string[]; // actionable rules derived from the data
   upgrades?: UpgradeInsights; // cross-version learning from PromptVersion diffs
+  strategicInsights?: string[]; // Gemini 2.5 Pro strategic recommendations
 };
 
 // ---- helpers ----
@@ -296,7 +297,7 @@ export async function computeCorpusInsights(): Promise<CorpusInsights> {
     `הפרומפטים הטובים ביותר במאגר: ${Math.round(tpAvgTech)} טכניקות בממוצע (פי ${Math.max(1, Math.round(tpAvgTech / Math.max(avgTech, 1)))} מהממוצע), ${tpTimecodePct}% משתמשים ב-timecodes.`,
   );
 
-  return {
+  const result: CorpusInsights = {
     totals: {
       sources: total,
       analyses: total,
@@ -317,6 +318,28 @@ export async function computeCorpusInsights(): Promise<CorpusInsights> {
     derivedRules: rules,
     upgrades: await computeUpgradeInsights(),
   };
+
+  // Extra: Gemini 2.5 Pro strategic insights (best-effort — never fails parent)
+  try {
+    const { generateStrategicInsights } = await import("./gemini-pro-insights");
+    const strategic = await generateStrategicInsights({
+      totals: result.totals,
+      topTechniques: result.topTechniques,
+      topStyles: result.topStyles,
+      topMoods: result.topMoods,
+      gaps: result.gaps,
+      cooccurrencePairs: result.cooccurrencePairs,
+      derivedRules: result.derivedRules,
+      upgrades: result.upgrades,
+    });
+    if (strategic.length > 0) result.strategicInsights = strategic;
+  } catch {
+    // best-effort
+  }
+
+  return result;
+
+  return result;
 }
 
 // ---- Upgrade insights: learn from PromptVersion diffs ----

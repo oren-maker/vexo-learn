@@ -24,6 +24,7 @@ const groups = [
       { href: "/learn/sources", label: "ספרייה", icon: "🎬" },
       { href: "/learn/knowledge", label: "Knowledge", icon: "🧠" },
       { href: "/learn/search", label: "חיפוש", icon: "🔍" },
+      { href: "/learn/search/semantic", label: "חיפוש סמנטי", icon: "🧠" },
     ],
   },
   {

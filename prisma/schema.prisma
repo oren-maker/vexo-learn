@@ -28,6 +28,9 @@ model LearnSource {
   children       LearnSource[] @relation("Lineage")
   lineageNotes   String?       // what was borrowed/adapted from parent (short paragraph)
   userRating Int?              // 1-5 stars, manual quality rating
+  embedding  Float[]           // gemini-embedding-001 vector for semantic search (default: empty)
+  embeddingModel String?       // model used for the current embedding
+  embeddedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   analysis   VideoAnalysis?
