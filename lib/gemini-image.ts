@@ -62,37 +62,60 @@ export async function generateImageFromPrompt(
 ): Promise<{ blobUrl: string; usdCost: number; model: string }> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
-  const genAI = new GoogleGenerativeAI(API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    generationConfig: {
-      responseModalities: ["IMAGE"] as any,
-    } as any,
-  });
-
   const structured = await buildStructuredImagePrompt(prompt);
 
-  let result;
+  // Direct REST call — the @google/generative-ai SDK doesn't reliably forward
+  // responseModalities for image-output models. Verified working via curl.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+  const body = {
+    contents: [{ parts: [{ text: structured }] }],
+    generationConfig: { responseModalities: ["IMAGE"] },
+  };
+
+  let res: Response;
   try {
-    result = await model.generateContent([{ text: structured }]);
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
+    });
   } catch (e: any) {
-    await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: String(e.message || e).slice(0, 200) } });
+    await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: `network: ${String(e.message || e).slice(0, 200)}` } });
     throw e;
   }
 
-  const parts = result.response.candidates?.[0]?.content?.parts || [];
+  if (!res.ok) {
+    const errText = await res.text();
+    await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { status: res.status, error: errText.slice(0, 300) } });
+    throw new Error(`Gemini ${res.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const json: any = await res.json();
+  const parts = json.candidates?.[0]?.content?.parts || [];
   let imageB64: string | null = null;
   let mimeType = "image/png";
-  for (const p of parts as any[]) {
+  let textNote: string | null = null;
+  for (const p of parts) {
     if (p.inlineData?.data) {
       imageB64 = p.inlineData.data;
       mimeType = p.inlineData.mimeType || "image/png";
-      break;
+    } else if (p.text) {
+      textNote = p.text;
     }
   }
   if (!imageB64) {
-    await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: "no image in response" } });
-    throw new Error("Gemini did not return an image (check quota / model access)");
+    const finishReason = json.candidates?.[0]?.finishReason;
+    const safety = json.promptFeedback?.blockReason || json.candidates?.[0]?.safetyRatings;
+    const reason = safety
+      ? `safety/block: ${typeof safety === "string" ? safety : JSON.stringify(safety).slice(0, 200)}`
+      : finishReason && finishReason !== "STOP"
+      ? `finishReason=${finishReason}`
+      : textNote
+      ? `model returned text instead of image: ${textNote.slice(0, 200)}`
+      : "no image in response";
+    await logUsage({ model: MODEL, operation: "image-gen", sourceId, errored: true, meta: { error: reason } });
+    throw new Error(`Gemini did not return an image — ${reason}`);
   }
 
   const buffer = Buffer.from(imageB64, "base64");
