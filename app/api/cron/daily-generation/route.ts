@@ -4,6 +4,7 @@ import { composePrompt } from "@/lib/gemini-compose";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 

@@ -5,6 +5,7 @@ import { logUsage } from "@/lib/usage-tracker";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -12,14 +13,14 @@ async function writeDailySummary(insights: any, yesterdayCounts: { sources: numb
   if (!API_KEY) return "";
   const delta = yesterdayCounts ? {
     sourcesAdded: insights.totals.sources - yesterdayCounts.sources,
-    nodesAdded: insights.totals.nodes - yesterdayCounts.nodes,
+    nodesAdded: insights.totals.knowledgeNodes - yesterdayCounts.nodes,
   } : null;
 
   const prompt = `אתה מערכת תובנות. כתוב סיכום יומי בעברית (3-4 משפטים) של מה שהשתנה בקורפוס היום.
 
 נתונים:
 - סה"כ פרומפטים: ${insights.totals.sources}
-- סה"כ Knowledge Nodes: ${insights.totals.nodes}
+- סה"כ Knowledge Nodes: ${insights.totals.knowledgeNodes}
 - ממוצע מילים/פרומפט: ${insights.totals.avgWordsPerPrompt}
 - ממוצע טכניקות/פרומפט: ${insights.totals.avgTechniquesPerPrompt}
 - Top 5 טכניקות: ${insights.topTechniques.slice(0,5).map((t: any) => t.name).join(", ")}
@@ -67,10 +68,10 @@ export async function GET() {
       data: {
         sourcesCount: insights.totals.sources,
         analysesCount: insights.totals.analyses,
-        nodesCount: insights.totals.nodes,
+        nodesCount: insights.totals.knowledgeNodes,
         avgTechniques: insights.totals.avgTechniquesPerPrompt,
         avgWords: insights.totals.avgWordsPerPrompt,
-        timecodePct: Math.round(insights.totals.timecodePct),
+        timecodePct: Math.round((insights.totals.promptsWithTimecodes / Math.max(insights.totals.sources, 1)) * 100),
         data: insights as any,
         summary,
         kind: "daily-report",
