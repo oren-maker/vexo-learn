@@ -40,6 +40,19 @@ export type TopPerformer = {
   richnessScore: number; // weighted combo
 };
 
+export type UpgradeInsights = {
+  totalUpgrades: number;
+  byTrigger: Record<string, number>;        // auto-improve | regenerate-from-url | retry-analysis | manual
+  avgWordDelta: number;                     // average +/- words per upgrade
+  avgWordPctDelta: number;                  // average % growth
+  avgLinesAdded: number;
+  avgLinesRemoved: number;
+  topAddedPhrases: Array<{ phrase: string; addedIn: number }>;   // 2-3 word phrases that appear in NEW versions but not OLD
+  topRemovedPhrases: Array<{ phrase: string; removedIn: number }>;
+  sectionGrowth: Array<{ section: string; addedPct: number }>;   // % of upgrades that ADDED this section
+  patterns: string[];                       // human-readable Hebrew rules ("השדרוגים נוספו 'volumetric lighting' ב-X% מהמקרים")
+};
+
 export type CorpusInsights = {
   totals: {
     sources: number;
@@ -59,6 +72,7 @@ export type CorpusInsights = {
   gaps: GapOpportunity[];
   topPerformers: TopPerformer[];
   derivedRules: string[]; // actionable rules derived from the data
+  upgrades?: UpgradeInsights; // cross-version learning from PromptVersion diffs
 };
 
 // ---- helpers ----
@@ -301,5 +315,196 @@ export async function computeCorpusInsights(): Promise<CorpusInsights> {
     gaps,
     topPerformers,
     derivedRules: rules,
+    upgrades: await computeUpgradeInsights(),
+  };
+}
+
+// ---- Upgrade insights: learn from PromptVersion diffs ----
+
+const UPGRADE_SECTIONS = [
+  { key: "VISUAL STYLE", label: "Visual Style" },
+  { key: "FILM STOCK", label: "Film Stock & Lens" },
+  { key: "COLOR", label: "Color & Grade" },
+  { key: "LIGHTING", label: "Lighting" },
+  { key: "CHARACTER", label: "Character" },
+  { key: "AUDIO", label: "Audio / Sound" },
+  { key: "TIMELINE", label: "Timeline" },
+  { key: "QUALITY", label: "Quality Boosters" },
+];
+
+function hasSection(prompt: string, key: string): boolean {
+  const escaped = key.replace(/ /g, "\\s*");
+  const re = new RegExp(`\\b${escaped}\\b`, "i");
+  return re.test(prompt);
+}
+
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "by", "for", "with", "from", "as", "is", "are", "was", "were", "be", "been", "being", "this", "that", "these", "those", "it", "its", "his", "her", "their", "they", "them", "we", "our", "you", "your", "i", "me", "my", "but", "if", "then", "so", "than", "into", "out", "up", "down", "over", "under", "no", "not",
+]);
+
+function bigramsFrom(text: string): string[] {
+  const tokens = text.toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) out.push(`${tokens[i]} ${tokens[i + 1]}`);
+  return out;
+}
+
+export async function computeUpgradeInsights(): Promise<UpgradeInsights> {
+  // Each PromptVersion = a snapshot of an OLD prompt. We compare it to the CURRENT prompt of the source
+  // (or the next-newer PromptVersion for that source if more upgrades happened after).
+  const versions = await prisma.promptVersion.findMany({
+    orderBy: [{ sourceId: "asc" }, { version: "asc" }],
+    select: { id: true, sourceId: true, version: true, prompt: true, triggeredBy: true, createdAt: true },
+  });
+  if (versions.length === 0) {
+    return {
+      totalUpgrades: 0,
+      byTrigger: {},
+      avgWordDelta: 0,
+      avgWordPctDelta: 0,
+      avgLinesAdded: 0,
+      avgLinesRemoved: 0,
+      topAddedPhrases: [],
+      topRemovedPhrases: [],
+      sectionGrowth: [],
+      patterns: ["אין עדיין שדרוגים — לחץ 'צור פרומפט מחדש' או הפעל Auto-Improvement כדי שהמערכת תתחיל ללמוד מההבדלים."],
+    };
+  }
+
+  // Group by source so we can chain: v1 → v2 → ... → current
+  const bySource: Record<string, typeof versions> = {};
+  for (const v of versions) (bySource[v.sourceId] ||= []).push(v);
+
+  // Fetch current prompts for all relevant sources
+  const sourceIds = Object.keys(bySource);
+  const sources = await prisma.learnSource.findMany({
+    where: { id: { in: sourceIds } },
+    select: { id: true, prompt: true },
+  });
+  const currentMap: Record<string, string> = {};
+  for (const s of sources) currentMap[s.id] = s.prompt;
+
+  // Build pairs: each version (old) → its successor (newer version of same source, or current source.prompt)
+  type Pair = { old: string; new: string; trigger: string };
+  const pairs: Pair[] = [];
+  for (const sid of sourceIds) {
+    const list = bySource[sid].sort((a, b) => a.version - b.version);
+    for (let i = 0; i < list.length; i++) {
+      const v = list[i];
+      const nextPrompt = i + 1 < list.length ? list[i + 1].prompt : currentMap[sid];
+      if (!nextPrompt) continue;
+      pairs.push({ old: v.prompt, new: nextPrompt, trigger: v.triggeredBy || "manual" });
+    }
+  }
+
+  if (pairs.length === 0) {
+    return {
+      totalUpgrades: 0,
+      byTrigger: {},
+      avgWordDelta: 0,
+      avgWordPctDelta: 0,
+      avgLinesAdded: 0,
+      avgLinesRemoved: 0,
+      topAddedPhrases: [],
+      topRemovedPhrases: [],
+      sectionGrowth: [],
+      patterns: [],
+    };
+  }
+
+  const byTrigger: Record<string, number> = {};
+  let wordDeltaSum = 0;
+  let wordPctSum = 0;
+  let linesAddedSum = 0;
+  let linesRemovedSum = 0;
+  const addedBigramCount: Record<string, number> = {};
+  const removedBigramCount: Record<string, number> = {};
+  const sectionAddedCount: Record<string, number> = {};
+  for (const s of UPGRADE_SECTIONS) sectionAddedCount[s.label] = 0;
+
+  for (const p of pairs) {
+    byTrigger[p.trigger] = (byTrigger[p.trigger] || 0) + 1;
+    const oldWords = p.old.trim().split(/\s+/).length;
+    const newWords = p.new.trim().split(/\s+/).length;
+    wordDeltaSum += newWords - oldWords;
+    if (oldWords > 0) wordPctSum += ((newWords - oldWords) / oldWords) * 100;
+
+    const oldLines = new Set(p.old.split("\n").map((l) => l.trim()));
+    const newLines = new Set(p.new.split("\n").map((l) => l.trim()));
+    for (const l of Array.from(newLines)) if (!oldLines.has(l) && l.length > 5) linesAddedSum++;
+    for (const l of Array.from(oldLines)) if (!newLines.has(l) && l.length > 5) linesRemovedSum++;
+
+    // Bigrams added (in NEW but not in OLD)
+    const oldBigrams = new Set(bigramsFrom(p.old));
+    const newBigrams = bigramsFrom(p.new);
+    const seenAdded = new Set<string>();
+    for (const bg of newBigrams) {
+      if (!oldBigrams.has(bg) && !seenAdded.has(bg)) {
+        seenAdded.add(bg);
+        addedBigramCount[bg] = (addedBigramCount[bg] || 0) + 1;
+      }
+    }
+    const newBigramsSet = new Set(newBigrams);
+    const seenRemoved = new Set<string>();
+    for (const bg of Array.from(oldBigrams)) {
+      if (!newBigramsSet.has(bg) && !seenRemoved.has(bg)) {
+        seenRemoved.add(bg);
+        removedBigramCount[bg] = (removedBigramCount[bg] || 0) + 1;
+      }
+    }
+
+    // Section growth
+    for (const s of UPGRADE_SECTIONS) {
+      if (!hasSection(p.old, s.key) && hasSection(p.new, s.key)) {
+        sectionAddedCount[s.label]++;
+      }
+    }
+  }
+
+  const n = pairs.length;
+  const topAdded = Object.entries(addedBigramCount)
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([phrase, addedIn]) => ({ phrase, addedIn }));
+  const topRemoved = Object.entries(removedBigramCount)
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([phrase, removedIn]) => ({ phrase, removedIn }));
+  const sectionGrowth = UPGRADE_SECTIONS
+    .map((s) => ({ section: s.label, addedPct: Math.round((sectionAddedCount[s.label] / n) * 100) }))
+    .filter((x) => x.addedPct > 0)
+    .sort((a, b) => b.addedPct - a.addedPct);
+
+  // Build human-readable patterns in Hebrew
+  const patterns: string[] = [];
+  const avgDelta = Math.round(wordDeltaSum / n);
+  const avgPct = Math.round(wordPctSum / n);
+  patterns.push(`בממוצע השדרוג מוסיף ${avgDelta > 0 ? "+" : ""}${avgDelta} מילים (${avgPct > 0 ? "+" : ""}${avgPct}%) לפרומפט.`);
+  if (sectionGrowth.length > 0) {
+    const top3 = sectionGrowth.slice(0, 3).map((s) => `${s.section} (${s.addedPct}%)`).join(", ");
+    patterns.push(`הסעיפים שנוספים הכי הרבה: ${top3}.`);
+  }
+  if (topAdded.length >= 3) {
+    const phrases = topAdded.slice(0, 5).map((p) => `"${p.phrase}"`).join(", ");
+    patterns.push(`ביטויים שחוזרים בהרבה שדרוגים: ${phrases}.`);
+  }
+  if (Object.keys(byTrigger).length > 0) {
+    const triggerSummary = Object.entries(byTrigger).map(([t, c]) => `${t}: ${c}`).join(" · ");
+    patterns.push(`פילוח טריגרים: ${triggerSummary}.`);
+  }
+
+  return {
+    totalUpgrades: n,
+    byTrigger,
+    avgWordDelta: avgDelta,
+    avgWordPctDelta: avgPct,
+    avgLinesAdded: Math.round(linesAddedSum / n),
+    avgLinesRemoved: Math.round(linesRemovedSum / n),
+    topAddedPhrases: topAdded,
+    topRemovedPhrases: topRemoved,
+    sectionGrowth,
+    patterns,
   };
 }

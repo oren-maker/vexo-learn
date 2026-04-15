@@ -184,6 +184,99 @@ export default async function InsightsPage() {
         </div>
       </Section>
 
+      {/* Upgrade insights */}
+      {insights.upgrades && insights.upgrades.totalUpgrades > 0 && (
+        <Section title={`מה למדנו משדרוגי פרומפטים (${insights.upgrades.totalUpgrades} שדרוגים)`} subtitle="ניתוח חוצה-גרסאות של ה-PromptVersions — מה הוסיפו, מה הסירו, ואילו סעיפים צמחו">
+          <div className="space-y-4">
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <UpgradeKpi value={insights.upgrades.totalUpgrades} label="סה״כ שדרוגים" accent="cyan" />
+              <UpgradeKpi
+                value={`${insights.upgrades.avgWordDelta > 0 ? "+" : ""}${insights.upgrades.avgWordDelta}`}
+                label="ממוצע מילים נוספו"
+                hint={`${insights.upgrades.avgWordPctDelta > 0 ? "+" : ""}${insights.upgrades.avgWordPctDelta}% גידול`}
+                accent="emerald"
+              />
+              <UpgradeKpi value={insights.upgrades.avgLinesAdded} label="ממוצע שורות נוספו" accent="purple" />
+              <UpgradeKpi value={insights.upgrades.avgLinesRemoved} label="ממוצע שורות הוסרו" accent="amber" />
+            </div>
+
+            {/* Patterns — human-readable Hebrew */}
+            <div className="bg-slate-900/60 border border-cyan-500/30 rounded-xl p-4">
+              <div className="text-[10px] uppercase text-cyan-400 mb-2 font-semibold">💡 כללים שנלמדו</div>
+              <ul className="space-y-1.5 text-sm text-slate-200">
+                {insights.upgrades.patterns.map((p, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-cyan-400 shrink-0">▸</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Section growth */}
+            {insights.upgrades.sectionGrowth.length > 0 && (
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                <div className="text-[10px] uppercase text-slate-400 mb-3 font-semibold">📊 איזה סעיפים נוספים הכי הרבה</div>
+                <div className="space-y-2">
+                  {insights.upgrades.sectionGrowth.map((s) => (
+                    <div key={s.section} className="text-xs">
+                      <div className="flex justify-between text-slate-300 mb-0.5">
+                        <span>{s.section}</span>
+                        <span className="text-emerald-300 font-mono">+{s.addedPct}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-l from-emerald-500 to-cyan-500" style={{ width: `${s.addedPct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Added vs Removed phrases */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {insights.upgrades.topAddedPhrases.length > 0 && (
+                <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-xl p-4">
+                  <div className="text-[10px] uppercase text-emerald-400 mb-2 font-semibold">➕ ביטויים שנוספים הכי הרבה</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {insights.upgrades.topAddedPhrases.map((p) => (
+                      <span key={p.phrase} className="text-[11px] bg-emerald-500/10 text-emerald-200 border border-emerald-500/30 px-2 py-1 rounded font-mono" dir="ltr">
+                        {p.phrase} <span className="text-emerald-400">×{p.addedIn}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {insights.upgrades.topRemovedPhrases.length > 0 && (
+                <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-4">
+                  <div className="text-[10px] uppercase text-red-400 mb-2 font-semibold">➖ ביטויים שמוסרים</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {insights.upgrades.topRemovedPhrases.map((p) => (
+                      <span key={p.phrase} className="text-[11px] bg-red-500/10 text-red-200 border border-red-500/30 px-2 py-1 rounded font-mono" dir="ltr">
+                        {p.phrase} <span className="text-red-400">×{p.removedIn}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Trigger breakdown */}
+            {Object.keys(insights.upgrades.byTrigger).length > 0 && (
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-2">
+                <span className="text-[10px] uppercase text-slate-500 font-semibold ml-2">לפי טריגר:</span>
+                {Object.entries(insights.upgrades.byTrigger).map(([t, c]) => (
+                  <span key={t} className="text-[11px] bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono">
+                    {t}: <b className="text-cyan-300">{c}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
       {/* Frequency tables */}
       <Section title="תדירות במאגר" subtitle="הטכניקות/סגנונות/נושאים הנפוצים ביותר">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -192,6 +285,22 @@ export default async function InsightsPage() {
           <FreqList title="נושאים" items={insights.topTags} colorClass="text-emerald-300" />
         </div>
       </Section>
+    </div>
+  );
+}
+
+function UpgradeKpi({ value, label, hint, accent }: { value: any; label: string; hint?: string; accent: "cyan" | "purple" | "emerald" | "amber" }) {
+  const colorMap = {
+    cyan: "text-cyan-300",
+    purple: "text-purple-300",
+    emerald: "text-emerald-300",
+    amber: "text-amber-300",
+  };
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+      <div className={`text-2xl font-black ${colorMap[accent]}`}>{value}</div>
+      <div className="text-xs text-slate-300 mt-0.5">{label}</div>
+      {hint && <div className="text-[10px] text-slate-500 mt-0.5">{hint}</div>}
     </div>
   );
 }
