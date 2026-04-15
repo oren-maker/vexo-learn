@@ -34,10 +34,10 @@ export async function lumaRay2Transition(opts: {
         frame0: { type: "image", url: opts.startFrameUrl },
         frame1: { type: "image", url: opts.endFrameUrl },
       },
-      duration: String(duration) as any,
+      duration: String(duration),
       resolution: "720p",
       aspect_ratio: "16:9",
-    },
+    } as any,
     logs: false,
   });
   const videoUrl = result?.data?.video?.url || result?.video?.url;
