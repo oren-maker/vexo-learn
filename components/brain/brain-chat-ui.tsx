@@ -21,10 +21,11 @@ function parseAction(text: string): { stripped: string; action: ParsedAction | n
 
 function actionLabel(action: any): string {
   switch (action.type) {
+    case "compose_prompt": return `✨ צור פרומפט וידאו חדש`;
     case "import_guide_url": return `📥 ייבא מדריך מ-URL`;
     case "ai_guide": return `🤖 צור מדריך AI`;
     case "import_instagram_guide": return `📷 ייבא פוסט Instagram כמדריך`;
-    case "import_source": return `➕ צור מקור פרומפט חדש`;
+    case "import_source": return `➕ ייבא פוסט כמקור פרומפט`;
     default: return `⚡ ${action.type}`;
   }
 }
@@ -32,6 +33,7 @@ function actionLabel(action: any): string {
 function actionDetail(action: any): string {
   if (action.url) return action.url;
   if (action.topic) return `"${action.topic}"`;
+  if (action.brief) return `"${action.brief}"`;
   return "";
 }
 

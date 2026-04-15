@@ -7,17 +7,30 @@ import { extractInstagram } from "@/lib/instagram";
 import { generateGuideFromTopic } from "@/lib/guide-ai";
 import { translateGuideToLang } from "@/lib/translate";
 import { runPipeline } from "@/lib/pipeline";
+import { composePrompt } from "@/lib/gemini-compose";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+// Hebrew → Latin transliteration for clean ASCII URL slugs
+const HE_TO_LAT: Record<string, string> = {
+  א: "a", ב: "b", ג: "g", ד: "d", ה: "h", ו: "v", ז: "z", ח: "ch", ט: "t",
+  י: "y", כ: "k", ך: "k", ל: "l", מ: "m", ם: "m", נ: "n", ן: "n", ס: "s",
+  ע: "a", פ: "p", ף: "p", צ: "tz", ץ: "tz", ק: "k", ר: "r", ש: "sh", ת: "t",
+};
+
 function slugify(text: string): string {
-  return text
+  const transliterated = text
+    .split("")
+    .map((c) => HE_TO_LAT[c] ?? c)
+    .join("")
     .toLowerCase()
-    .replace(/[^\w\u0590-\u05FF\u0600-\u06FF\s-]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
     .slice(0, 80);
+  return transliterated || "guide";
 }
 
 export async function POST(req: NextRequest) {
@@ -90,6 +103,21 @@ export async function POST(req: NextRequest) {
       if (lang !== "he") waitUntil(translateGuideToLang(guide.id, "he").catch(() => {}));
       resultUrl = `/guides/${guide.slug}`;
       resultText = `✅ ייבאתי מ-Instagram: "${title.slice(0, 60)}".`;
+    } else if (action.type === "compose_prompt") {
+      const brief = String(action.brief || action.topic || "").trim();
+      if (!brief) return NextResponse.json({ error: "brief/topic required" }, { status: 400 });
+      const composed = await composePrompt(brief);
+      const source = await prisma.learnSource.create({
+        data: {
+          type: "upload",
+          prompt: composed.prompt,
+          title: brief.slice(0, 120),
+          status: "complete",
+          addedBy: "brain-chat",
+        },
+      });
+      resultUrl = `/learn/sources/${source.id}`;
+      resultText = `✅ יצרתי פרומפט חדש (${composed.prompt.split(" ").length} מילים). שמרתי אותו בספרייה.`;
     } else if (action.type === "import_source") {
       const source = await prisma.learnSource.create({
         data: { type: "instructor_url", url: action.url, prompt: "", status: "pending", addedBy: "brain-chat" },

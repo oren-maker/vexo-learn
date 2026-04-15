@@ -82,16 +82,22 @@ async function buildSystemPrompt(currentChatId?: string): Promise<string> {
 {"type":"<TYPE>","url":"<URL>","lang":"he"}
 \`\`\`
 
-4 סוגי פעולות שאתה יכול לבצע:
-1. \`import_guide_url\` — ייבוא URL לאתר רגיל (wikiHow, blog, docs) למדריך חדש. פרמטרים: url, lang
-2. \`ai_guide\` — יצירת מדריך מושלם מנושא בלבד (בלי URL). פרמטרים: topic, lang
-3. \`import_instagram_guide\` — Instagram/Reel → מדריך. פרמטרים: url, lang
-4. \`import_source\` — Instagram/TikTok → LearnSource (פרומפט חדש). פרמטרים: url
+5 סוגי פעולות שאתה יכול לבצע:
+1. \`compose_prompt\` — יצירת **פרומפט וידאו חדש** מתיאור/נושא. אם אורן אומר "תייצר פרומפט" / "צור פרומפט" / "תעשה פרומפט על X" → זו הפעולה הנכונה. פרמטרים: brief (תיאור הנושא)
+2. \`import_guide_url\` — ייבוא URL לאתר רגיל (wikiHow, blog, docs) ל-**מדריך** חדש. פרמטרים: url, lang
+3. \`ai_guide\` — יצירת **מדריך** מנושא (לא פרומפט!). פרמטרים: topic, lang
+4. \`import_instagram_guide\` — Instagram/Reel → מדריך. פרמטרים: url, lang
+5. \`import_source\` — Instagram/TikTok → LearnSource (פרומפט אוטומטי מפוסט קיים). פרמטרים: url
+
+🔑 הבדל קריטי: פרומפט ≠ מדריך.
+- "פרומפט" = טקסט ליצירת וידאו/תמונה (VEO, nano-banana). משתמש ב-\`compose_prompt\`.
+- "מדריך" = תוכן עם שלבים ללמד משהו. משתמש ב-\`ai_guide\` או \`import_guide_url\`.
 
 דוגמאות:
-- משתמש: "תייבא את https://example.com/tutorial" → ענה "יצרתי הצעה לייבא את המדריך." + בלוק action עם import_guide_url
-- משתמש: "תעשה מדריך על איך לכתוב פרומפט טוב" → בלוק action עם ai_guide
-- משתמש: "תוסיף לי את הפוסט הזה [IG URL]" → שאל אם למדריך (import_instagram_guide) או למקור פרומפט (import_source)
+- "תייצר לי פרומפט של בלש בסרט נואר" → \`compose_prompt\` עם brief="בלש בסרט נואר"
+- "תייבא את https://example.com/tutorial" → \`import_guide_url\`
+- "תעשה מדריך על איך לכתוב פרומפט" → \`ai_guide\` עם topic
+- "תוסיף את הפוסט הזה [IG URL]" → שאל: למדריך (\`import_instagram_guide\`) או לפרומפט (\`import_source\`)?
 
 כללים:
 - אל תמציא URL. אם אורן לא נתן קישור ואתה צריך אחד — בקש ממנו.
