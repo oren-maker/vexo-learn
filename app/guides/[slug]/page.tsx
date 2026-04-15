@@ -32,6 +32,8 @@ export default async function GuideViewPage({
   if (!data?.guide) notFound();
 
   const guide = data.guide;
+  const { prisma } = await import("@/lib/db");
+  prisma.guide.update({ where: { slug: guide.slug }, data: { viewCount: { increment: 1 } } }).catch(() => {});
   const trans = guide.translations.find((t: any) => t.lang === lang) || guide.translations.find((t: any) => t.lang === guide.defaultLang) || guide.translations[0];
   const dir = isRtl(lang) ? "rtl" : "ltr";
 
@@ -74,6 +76,7 @@ export default async function GuideViewPage({
           {guide.category && <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded">{guide.category}</span>}
           {guide.authorName && <span>✍️ {guide.authorName}</span>}
           {guide.estimatedMinutes && <span>⏱ {guide.estimatedMinutes} דק׳ קריאה</span>}
+          <span className="bg-slate-800/60 border border-slate-700 text-slate-300 px-2 py-0.5 rounded">👁 {(guide.viewCount || 0).toLocaleString()} צפיות</span>
           {trans?.isAuto && <span className="text-amber-400">🤖 תרגום AI</span>}
           <span>{guide.stages.length} שלבים</span>
         </div>

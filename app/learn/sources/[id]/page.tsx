@@ -23,6 +23,7 @@ export default async function SourceDetail({ params }: { params: { id: string } 
     include: { analysis: { include: { knowledgeNodes: true } } },
   });
   if (!source) notFound();
+  prisma.learnSource.update({ where: { id: source.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
   const isLive = source.status === "pending" || source.status === "processing";
 
@@ -65,6 +66,7 @@ export default async function SourceDetail({ params }: { params: { id: string } 
             <StatusBadge status={source.status} />
             <span className="text-[11px] text-slate-500">{source.type}</span>
             <StarRating sourceId={source.id} initialRating={source.userRating} size="md" />
+            <span className="text-[11px] text-slate-400 bg-slate-800/60 border border-slate-700 px-2 py-0.5 rounded">👁 {source.viewCount.toLocaleString()} צפיות</span>
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">
             {source.title || "ממתין ל-metadata..."}

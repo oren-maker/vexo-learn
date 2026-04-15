@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { adminHeaders } from "@/lib/admin-key";
 
@@ -78,6 +79,7 @@ const ACTION_STAGES: Record<string, string[]> = {
 };
 
 export default function BrainChatUI({ initialChatId }: { initialChatId?: string }) {
+  const router = useRouter();
   const [chatId, setChatId] = useState<string | undefined>(initialChatId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -184,6 +186,12 @@ export default function BrainChatUI({ initialChatId }: { initialChatId?: string 
               ✨ שיחה חדשה
             </button>
           )}
+          <button
+            onClick={() => router.push("/learn/brain")}
+            className="text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded font-semibold"
+          >
+            🏁 סיים שיחה
+          </button>
         </div>
       </div>
 
