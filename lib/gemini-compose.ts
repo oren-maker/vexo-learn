@@ -95,7 +95,28 @@ function buildUserMsg(brief: string, refs: Array<{ title: string | null; prompt:
 }
 
 function parseComposeJson(raw: string): { prompt: string; rationale: string } {
-  const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  let cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+  // Extract the first complete JSON object — Gemini sometimes appends prose
+  // after the JSON or returns multiple objects. Walk braces to find the boundary.
+  if (cleaned.startsWith("{")) {
+    let depth = 0, end = -1, inStr = false, esc = false;
+    for (let i = 0; i < cleaned.length; i++) {
+      const c = cleaned[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+      } else {
+        if (c === '"') inStr = true;
+        else if (c === "{") depth++;
+        else if (c === "}") {
+          depth--;
+          if (depth === 0) { end = i + 1; break; }
+        }
+      }
+    }
+    if (end > 0) cleaned = cleaned.slice(0, end);
+  }
   const parsed = JSON.parse(cleaned);
   if (!parsed.prompt) throw new Error("model did not return a prompt field");
   return { prompt: String(parsed.prompt).trim(), rationale: String(parsed.rationale || "").trim() };
