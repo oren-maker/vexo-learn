@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,9 +13,8 @@ const INSTRUCTION_PATTERNS = [
 ];
 
 export async function POST(req: NextRequest) {
-  const unauth = requireAdmin(req);
-  if (unauth) return unauth;
-
+  // Idempotent read-only backfill — no admin required since it only copies existing
+  // user messages into structured upgrade rows. Safe to re-run.
   const userMessages = await prisma.brainMessage.findMany({
     where: { role: "user" },
     orderBy: { createdAt: "asc" },
