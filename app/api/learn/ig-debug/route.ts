@@ -6,6 +6,12 @@ export const maxDuration = 60;
 
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+const SCRAPER_UAS = [
+  "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+  "Twitterbot/1.0",
+  "WhatsApp/2.21",
+  "TelegramBot (like TwitterBot)",
+];
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url).searchParams.get("u") || "";
@@ -24,11 +30,13 @@ export async function GET(req: NextRequest) {
   const embedUrl = m ? `https://www.instagram.com/${m[1]}/${m[2]}/embed/captioned/` : null;
   out.embedUrl = embedUrl;
 
-  for (const target of [url, embedUrl].filter(Boolean) as string[]) {
-    const label = target === url ? "canonical" : "embed";
+  const targets = [url, embedUrl].filter(Boolean) as string[];
+  const uas = [BROWSER_UA, ...SCRAPER_UAS];
+  for (const target of targets) for (const ua of uas) {
+    const label = `${target === url ? "canonical" : "embed"}_${ua.split("/")[0]}`;
     try {
       const res = await fetch(target, {
-        headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html" },
+        headers: { "User-Agent": ua, "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html" },
         signal: AbortSignal.timeout(15000),
       });
       const item: any = { status: res.status, contentType: res.headers.get("content-type") };
