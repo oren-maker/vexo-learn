@@ -316,3 +316,87 @@ model MergeEdit {
 
   @@index([jobId, createdAt])
 }
+
+// ----- Guides module -----
+
+model Guide {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  status           String   @default("draft")     // draft | published | archived
+  defaultLang      String   @default("he")
+  isPublic         Boolean  @default(true)
+  source           String?
+  sourceUrl        String?
+  coverImageUrl    String?
+  category         String?
+  estimatedMinutes Int?
+  authorName       String?
+  pdfBlobUrl       String?
+  pdfGeneratedAt   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  translations     GuideTranslation[]
+  stages           GuideStage[]
+
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model GuideTranslation {
+  id          String   @id @default(cuid())
+  guideId     String
+  guide       Guide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  lang        String
+  title       String
+  description String?  @db.Text
+  summary     String?  @db.Text
+  isAuto      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([guideId, lang])
+  @@index([lang])
+}
+
+model GuideStage {
+  id               String   @id @default(cuid())
+  guideId          String
+  guide            Guide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  order            Int
+  type             String   @default("middle")
+  transitionToNext String   @default("fade")
+  durationSec      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  translations     GuideStageTranslation[]
+  images           GuideStageImage[]
+
+  @@unique([guideId, order])
+  @@index([guideId])
+}
+
+model GuideStageTranslation {
+  id      String   @id @default(cuid())
+  stageId String
+  stage   GuideStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  lang    String
+  title   String
+  content String   @db.Text
+  isAuto  Boolean  @default(false)
+
+  @@unique([stageId, lang])
+}
+
+model GuideStageImage {
+  id        String   @id @default(cuid())
+  stageId   String
+  stage     GuideStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  blobUrl   String
+  caption   String?
+  order     Int
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@index([stageId, order])
+}

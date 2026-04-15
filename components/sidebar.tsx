@@ -36,6 +36,14 @@ const groups = [
     ],
   },
   {
+    title: "מדריכים",
+    icon: "📖",
+    items: [
+      { href: "/guides", label: "ספריית מדריכים", icon: "📚" },
+      { href: "/guides/new", label: "מדריך חדש", icon: "➕" },
+    ],
+  },
+  {
     title: "וידאו",
     icon: "🎥",
     items: [
