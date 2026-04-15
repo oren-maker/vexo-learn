@@ -29,69 +29,69 @@ export async function ingestSocialVideoAction(rawUrl: string) {
   }
 
   try {
-    // Step 1: Extract direct URL + caption
+    // Step 1: Extract caption + thumbnail (+ optionally video URL — IG often blocks this)
     const ig = await extractInstagram(url);
-    if (!ig.videoUrl) {
-      return { ok: false as const, error: "לא הצלחתי למצוא קישור ישיר לוידאו (אולי הפוסט פרטי)." };
+    if (!ig.caption && !ig.thumbnail && !ig.videoUrl) {
+      return { ok: false as const, error: "לא הצלחתי לחלץ שום נתון מהפוסט (אולי פרטי או נחסם)." };
     }
 
-    // Step 2: Download MP4 and push to Blob so the link survives
-    let blobUrl: string;
-    try {
-      const res = await fetch(ig.videoUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 vexo-learn" },
-        signal: AbortSignal.timeout(60000),
-      });
-      if (!res.ok) throw new Error(`video fetch ${res.status}`);
-      const buffer = Buffer.from(await res.arrayBuffer());
-      const blob = await put(`instagram/${Date.now()}.mp4`, buffer, {
-        access: "public",
-        contentType: "video/mp4",
-      });
-      blobUrl = blob.url;
-    } catch (e: any) {
-      return { ok: false as const, error: `הורדת הוידאו נכשלה: ${String(e.message || e).slice(0, 120)}` };
+    // Step 2: If we have a direct video URL, download to Blob. Otherwise skip — we'll
+    // analyze from caption + thumbnail only (IG no longer exposes MP4 to scrapers).
+    let blobUrl: string | null = null;
+    if (ig.videoUrl) {
+      try {
+        const res = await fetch(ig.videoUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 vexo-learn" },
+          signal: AbortSignal.timeout(60000),
+        });
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer());
+          const blob = await put(`instagram/${Date.now()}.mp4`, buffer, {
+            access: "public",
+            contentType: "video/mp4",
+          });
+          blobUrl = blob.url;
+        }
+      } catch {
+        // proceed without video — caption+thumbnail still useful
+      }
     }
 
-    // Step 3: Create pending source so we can show status
+    // Step 3: Create source row
     const source = await prisma.learnSource.create({
       data: {
         type: "instructor_url",
         url: ig.sourceUrl,
-        blobUrl,
+        blobUrl: blobUrl || "",
         thumbnail: ig.thumbnail,
-        prompt: ig.caption || "(יחולץ מהסרטון)",
+        prompt: ig.caption || "(יחולץ מהפוסט)",
         title: (ig.caption || "Instagram reel").slice(0, 150),
         status: "processing",
         addedBy: "instagram",
       },
     });
 
-    // Step 4: Gemini video analysis → Claude fallback (caption + thumbnail)
+    // Step 4: Analyze. Prefer video analysis if we have the MP4, else Gemini text+image.
     let analyzed;
-    let analysisEngine = "gemini-video";
+    let analysisEngine = blobUrl ? "gemini-video" : "gemini-image";
     try {
-      analyzed = await extractPromptFromVideo(blobUrl, ig.caption);
-    } catch (e: any) {
-      if (isQuotaError(e)) {
-        // Fall back to Claude (caption + thumbnail image)
+      if (blobUrl) {
         try {
+          analyzed = await extractPromptFromVideo(blobUrl, ig.caption);
+        } catch (e: any) {
+          if (!isQuotaError(e)) throw e;
           analyzed = await generatePromptWithClaude(ig.caption, ig.thumbnail);
-          analysisEngine = "claude-fallback";
-        } catch (e2: any) {
-          await prisma.learnSource.update({
-            where: { id: source.id },
-            data: { status: "failed", error: `Gemini quota + Claude fallback: ${String(e2.message || e2).slice(0, 300)}` },
-          });
-          return { ok: false as const, error: `שני המנועים נכשלו. Gemini: quota. Claude: ${String(e2.message || e2).slice(0, 150)}` };
+          analysisEngine = "gemini-text-fallback";
         }
       } else {
-        await prisma.learnSource.update({
-          where: { id: source.id },
-          data: { status: "failed", error: String(e.message || e).slice(0, 500) },
-        });
-        return { ok: false as const, error: `ניתוח Gemini נכשל: ${String(e.message || e).slice(0, 200)}` };
+        analyzed = await generatePromptWithClaude(ig.caption, ig.thumbnail);
       }
+    } catch (e: any) {
+      await prisma.learnSource.update({
+        where: { id: source.id },
+        data: { status: "failed", error: String(e.message || e).slice(0, 500) },
+      });
+      return { ok: false as const, error: `ניתוח נכשל: ${String(e.message || e).slice(0, 200)}` };
     }
 
     try {
