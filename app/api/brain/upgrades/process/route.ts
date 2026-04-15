@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-// Auto-classify + mark status for every pending upgrade based on its text.
-// Idempotent: only touches rows still in "pending". Safe to re-run.
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const pending = await prisma.brainUpgradeRequest.findMany({ where: { status: "pending" } });
 
   const ONE_SHOT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תייצר לי|אחלה תייצר|מוח תייצר)|תייצר לי פרומט|תייצר פרומט/;

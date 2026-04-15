@@ -42,7 +42,7 @@ Total 5-7 stages. Each content 100-250 words, with markdown bullets where helpfu
   const model = genAI().getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.6, maxOutputTokens: 6000 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.6, maxOutputTokens: 3000 },
   });
   const result = await model.generateContent(`Topic: ${topic}\n\nReturn the guide JSON now.`);
   const u = result.response.usageMetadata;
@@ -63,7 +63,7 @@ export async function generateStageContent(guideTitle: string, stageTitle: strin
   const model = genAI().getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM,
-    generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
+    generationConfig: { temperature: 0.6, maxOutputTokens: 512 },
   });
   const result = await model.generateContent(`Guide topic: ${guideTitle}\nThis stage's title: ${stageTitle}\n\nWrite the stage body now.`);
   const u = result.response.usageMetadata;

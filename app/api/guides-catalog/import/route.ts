@@ -5,6 +5,7 @@ import { scrapeGuideFromUrl } from "@/lib/guide-scraper";
 import { translateGuideToLang } from "@/lib/translate";
 import { GUIDE_CATALOG, type CatalogKey } from "@/lib/guide-catalog";
 import { createJob, updateJob, finishJob, failJob } from "@/lib/sync-jobs";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -49,6 +50,8 @@ async function importOne(url: string, category: string): Promise<{ ok: boolean; 
 }
 
 export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const { catalog } = await req.json().catch(() => ({ catalog: "all" }));
 
   const allUrls: Array<{ url: string; category: string }> = [];

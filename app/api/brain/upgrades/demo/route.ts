@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-// Demo endpoint: insert 2 upgrade suggestions to prove the pipeline works.
-// Idempotent-ish: creates chat + messages + upgrades each call.
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const chat = await prisma.brainChat.create({
     data: { title: "הצעות שדרוג מ-Claude (demo)" },
   });

@@ -27,8 +27,12 @@ export type ScrapedGuide = {
   stages: Array<{ title: string; content: string; images: string[] }>;
 };
 
+import { isSafeExternalUrl } from "./url-safety";
+
 export async function scrapeGuideFromUrl(url: string): Promise<ScrapedGuide> {
-  const res = await fetch(url, {
+  const safe = isSafeExternalUrl(url);
+  if (!safe.ok) throw new Error(`unsafe URL: ${safe.reason}`);
+  const res = await fetch(safe.url.toString(), {
     headers: { "User-Agent": SCRAPER_UA, "Accept": "text/html" },
     signal: AbortSignal.timeout(15_000),
   });

@@ -97,6 +97,16 @@ async function tryInstagramDirect(clean: string): Promise<string | null> {
 
 export async function extractInstagram(url: string): Promise<IgExtract> {
   const clean = url.split("?")[0]; // strip tracking params
+  // Require instagram.com host to prevent SSRF via spoofed URLs
+  try {
+    const host = new URL(clean).hostname.toLowerCase();
+    if (!host.endsWith("instagram.com") && !host.endsWith("instagr.am")) {
+      throw new Error(`Only instagram.com URLs are allowed. Got: ${host}`);
+    }
+  } catch (e: any) {
+    if (e.message?.startsWith("Only instagram")) throw e;
+    throw new Error("Invalid Instagram URL");
+  }
 
   // Strategy: run library + HTML meta scrape in parallel. HTML scrape usually works even when library 572s.
   const [libVideoUrl, meta] = await Promise.all([

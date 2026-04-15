@@ -19,7 +19,7 @@ export async function translateText(text: string, targetLang: string): Promise<s
         }],
       },
       contents: [{ role: "user", parts: [{ text: text.slice(0, 12000) }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
+      generationConfig: { temperature: 0.2, maxOutputTokens: 1500 },
     };
     const res = await fetch(url, {
       method: "POST",
