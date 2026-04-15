@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
     byStatus,
     topWeakest: ranked,
     geminiKeySet: !!process.env.GEMINI_API_KEY,
-    anthropicKeySet: !!process.env.ANTHROPIC_API_KEY,
   };
 
   if (run) {

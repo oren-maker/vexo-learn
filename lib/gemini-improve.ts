@@ -1,15 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { logUsage } from "./usage-tracker";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
-
-function isQuotaError(e: any): boolean {
-  const msg = String(e?.message || e || "").toLowerCase();
-  return msg.includes("429") || msg.includes("quota") || msg.includes("rate limit") || msg.includes("expired") || msg.includes("403");
-}
 
 export type ImprovementResult = {
   scores: {
@@ -126,42 +120,12 @@ async function improveWithGemini(userPrompt: string, refs: any[]) {
   return parseImproveJson(result.response.text());
 }
 
-async function improveWithClaude(userPrompt: string, refs: any[]) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY חסר");
-  const client = new Anthropic({ apiKey: key });
-  const res = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    system: buildSystem(),
-    messages: [{ role: "user", content: buildUserMsg(userPrompt, refs) }],
-  });
-  await logUsage({
-    model: "claude-haiku-4-5-20251001", operation: "improve",
-    inputTokens: res.usage?.input_tokens || 0,
-    outputTokens: res.usage?.output_tokens || 0,
-  });
-  const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") throw new Error("Claude returned no text");
-  return parseImproveJson(block.text);
-}
-
 export async function improvePrompt(userPrompt: string): Promise<ImprovementResult> {
   if (!userPrompt || userPrompt.trim().length < 10) throw new Error("פרומפט קצר מדי");
+  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
   const refs = await pickReferences(userPrompt, 4);
-
-  let parsed: any;
-  if (API_KEY) {
-    try {
-      parsed = await improveWithGemini(userPrompt, refs);
-    } catch (e: any) {
-      if (!isQuotaError(e)) throw e;
-      parsed = await improveWithClaude(userPrompt, refs);
-    }
-  } else {
-    parsed = await improveWithClaude(userPrompt, refs);
-  }
+  const parsed: any = await improveWithGemini(userPrompt, refs);
 
   return {
     scores: {

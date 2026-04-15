@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { logUsage } from "./usage-tracker";
 
@@ -158,47 +157,14 @@ async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPr
   };
 }
 
-async function composeWithClaude(brief: string, refs: any[]): Promise<ComposedPrompt> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY חסר");
-  const client = new Anthropic({ apiKey: key });
-  const res = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildUserMsg(brief, refs) }],
-  });
-  await logUsage({
-    model: "claude-haiku-4-5-20251001", operation: "compose",
-    inputTokens: res.usage?.input_tokens || 0,
-    outputTokens: res.usage?.output_tokens || 0,
-  });
-  const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") throw new Error("Claude returned no text");
-  const { prompt, rationale } = parseComposeJson(block.text);
-  return {
-    prompt,
-    rationale,
-    similar: refs.map((r) => ({ id: r.id, title: r.title, externalId: r.externalId })),
-    engine: "claude",
-  };
-}
-
 export async function composePrompt(brief: string): Promise<ComposedPrompt> {
   if (!brief || brief.trim().length < 5) throw new Error("Brief קצר מדי");
+  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
   const refs = await pickReferences(brief, 5);
   if (refs.length === 0) throw new Error("אין מספיק פרומפטים ב-DB. הרץ סנכרון קודם.");
 
-  // Try Gemini first. On quota/403/429 → fall back to Claude.
-  if (API_KEY) {
-    try {
-      return await composeWithGemini(brief, refs);
-    } catch (e: any) {
-      if (!isQuotaError(e)) throw e;
-    }
-  }
-  return composeWithClaude(brief, refs);
+  return composeWithGemini(brief, refs);
 }
 
 export async function suggestSimilar(sourceId: string, count = 3): Promise<ComposedPrompt[]> {

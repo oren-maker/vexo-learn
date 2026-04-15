@@ -1,10 +1,12 @@
-// Claude-based prompt generator — fallback for when Gemini quota is exhausted.
-// Uses caption text + thumbnail image (vision) since Claude doesn't support video directly.
+// Fallback prompt generator using Gemini text+image (was Claude, now Gemini-only).
+// Used when the primary Gemini VIDEO call fails — we retry with a lighter
+// Gemini flash text+thumbnail call that uses a different quota bucket.
 
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logUsage } from "./usage-tracker";
 
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
+const MODEL = "gemini-flash-latest";
 
 export type ClaudeResult = {
   title: string;
@@ -34,58 +36,48 @@ Output ONLY valid JSON:
   "tags": ["5-8 lowercase tags"]
 }`;
 
-async function urlToBase64(url: string): Promise<{ data: string; mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" } | null> {
+async function urlToInlineData(url: string): Promise<{ data: string; mimeType: string } | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
     const contentType = (res.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
     if (!contentType.startsWith("image/")) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > 4.5 * 1024 * 1024) return null; // Claude image limit
-    const mediaType = (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType) ? contentType : "image/jpeg") as any;
-    return { data: buf.toString("base64"), mediaType };
+    if (buf.length > 4.5 * 1024 * 1024) return null;
+    return { data: buf.toString("base64"), mimeType: contentType };
   } catch {
     return null;
   }
 }
 
+// Name kept for backward compatibility — internally uses Gemini flash now.
 export async function generatePromptWithClaude(caption: string | null, thumbnailUrl: string | null): Promise<ClaudeResult> {
-  if (!API_KEY) throw new Error("ANTHROPIC_API_KEY חסר");
+  if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
 
-  const client = new Anthropic({ apiKey: API_KEY });
-  const content: any[] = [];
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  const model = genAI.getGenerativeModel({
+    model: MODEL,
+    systemInstruction: SYSTEM,
+    generationConfig: { responseMimeType: "application/json", temperature: 0.6, maxOutputTokens: 2048 },
+  });
 
+  const parts: any[] = [];
   if (thumbnailUrl) {
-    const img = await urlToBase64(thumbnailUrl);
-    if (img) {
-      content.push({
-        type: "image",
-        source: { type: "base64", media_type: img.mediaType, data: img.data },
-      });
-    }
+    const img = await urlToInlineData(thumbnailUrl);
+    if (img) parts.push({ inlineData: img });
   }
+  parts.push({ text: `Caption (may be Hebrew/other language):\n${caption || "(no caption)"}\n\nReturn the JSON now.` });
 
-  content.push({
-    type: "text",
-    text: `Caption (may be Hebrew/other language):\n${caption || "(no caption)"}\n\nReturn the JSON now.`,
-  });
-
-  const res = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    system: SYSTEM,
-    messages: [{ role: "user", content }],
-  });
+  const result = await model.generateContent(parts);
+  const u = result.response.usageMetadata;
   await logUsage({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL,
     operation: "video-analysis",
-    inputTokens: res.usage?.input_tokens || 0,
-    outputTokens: res.usage?.output_tokens || 0,
+    inputTokens: u?.promptTokenCount || 0,
+    outputTokens: u?.candidatesTokenCount || 0,
   });
 
-  const textBlock = res.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") throw new Error("Claude returned no text");
-  const raw = textBlock.text.trim()
+  const raw = result.response.text().trim()
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "")

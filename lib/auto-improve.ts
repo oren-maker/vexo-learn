@@ -4,7 +4,6 @@
 // into PromptVersion so nothing is lost.
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./db";
 import { logUsage } from "./usage-tracker";
 import { snapshotCurrentVersion, computeTextDiff } from "./prompt-versioning";
@@ -43,11 +42,6 @@ OR
 
 No markdown fencing, no commentary. Self-check before returning: all 8 sections present? length OK?`;
 
-function isQuotaError(e: any): boolean {
-  const msg = String(e?.message || e || "").toLowerCase();
-  return msg.includes("429") || msg.includes("quota") || msg.includes("rate limit") || msg.includes("expired") || msg.includes("403");
-}
-
 async function improveWithGemini(userMsg: string): Promise<any> {
   if (!GEMINI_KEY) throw new Error("GEMINI_API_KEY חסר");
   const genAI = new GoogleGenerativeAI(GEMINI_KEY);
@@ -66,28 +60,6 @@ async function improveWithGemini(userMsg: string): Promise<any> {
     meta: { purpose: "auto-improve" },
   });
   return JSON.parse(result.response.text());
-}
-
-async function improveWithClaude(userMsg: string): Promise<any> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY חסר");
-  const client = new Anthropic({ apiKey: key });
-  const res = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 4096,
-    system: SYSTEM,
-    messages: [{ role: "user", content: userMsg }],
-  });
-  await logUsage({
-    model: "claude-haiku-4-5-20251001",
-    operation: "improve",
-    inputTokens: res.usage?.input_tokens || 0,
-    outputTokens: res.usage?.output_tokens || 0,
-    meta: { purpose: "auto-improve" },
-  });
-  const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") throw new Error("Claude returned no text");
-  return JSON.parse(block.text.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim());
 }
 
 export async function runAutoImprovement(
@@ -165,16 +137,8 @@ export async function runAutoImprovement(
       try {
         parsed = await improveWithGemini(userMsg);
       } catch (e: any) {
-        if (!isQuotaError(e)) {
-          details.push({ sourceId: source.id, kept: true, reason: `error: ${String(e.message || e).slice(0, 100)}` });
-          continue;
-        }
-        try {
-          parsed = await improveWithClaude(userMsg);
-        } catch {
-          details.push({ sourceId: source.id, kept: true, reason: "both models unavailable" });
-          continue;
-        }
+        details.push({ sourceId: source.id, kept: true, reason: `error: ${String(e.message || e).slice(0, 100)}` });
+        continue;
       }
 
       if (parsed.keep) {
