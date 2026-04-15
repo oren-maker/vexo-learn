@@ -333,6 +333,7 @@ model Guide {
   authorName       String?
   pdfBlobUrl       String?
   pdfGeneratedAt   DateTime?
+  userRating       Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   translations     GuideTranslation[]
@@ -341,6 +342,7 @@ model Guide {
   @@index([status])
   @@index([category])
   @@index([createdAt])
+  @@index([userRating])
 }
 
 model GuideTranslation {

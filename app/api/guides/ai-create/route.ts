@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { isValidLang, DEFAULT_LANG } from "@/lib/guide-languages";
 import { generateGuideFromTopic } from "@/lib/guide-ai";
+import { translateGuideToLang } from "@/lib/translate";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -47,6 +49,9 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+    if (lang !== "he") {
+      waitUntil(translateGuideToLang(guide.id, "he").catch(() => {}));
+    }
     return NextResponse.json({ ok: true, guide });
   } catch (e: any) {
     console.error("[ai-create]", e);

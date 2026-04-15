@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { isValidLang, DEFAULT_LANG, isRtl } from "@/lib/guide-languages";
 import LanguagePicker from "@/components/guides/language-picker";
+import GuideStarRating from "@/components/guides/guide-star-rating";
+import TranslateLibraryButton from "@/components/guides/translate-library-button";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,7 @@ export default async function GuidesLibraryPage({ searchParams }: { searchParams
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <LanguagePicker current={lang} />
+          <TranslateLibraryButton />
           <Link href="/guides/new" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm">
             ➕ מדריך חדש
           </Link>
@@ -62,13 +65,18 @@ export default async function GuidesLibraryPage({ searchParams }: { searchParams
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {guides.map((g) => {
-            const t = g.translations.find((x) => x.lang === lang) || g.translations.find((x) => x.lang === g.defaultLang) || g.translations[0];
+            // Hebrew-first display strategy
+            const heTrans = g.translations.find((x) => x.lang === "he");
+            const reqTrans = g.translations.find((x) => x.lang === lang);
+            const defaultTrans = g.translations.find((x) => x.lang === g.defaultLang);
+            const t = heTrans || reqTrans || defaultTrans || g.translations[0];
+            const isShowingHebrew = t?.lang === "he";
             const dir = isRtl(t?.lang || g.defaultLang) ? "rtl" : "ltr";
             return (
               <Link
                 key={g.id}
-                href={`/guides/${g.slug}?lang=${lang}`}
-                className="bg-slate-900/60 border border-slate-800 hover:border-cyan-500/50 rounded-xl overflow-hidden transition group"
+                href={`/guides/${g.slug}?lang=${isShowingHebrew ? "he" : lang}`}
+                className="bg-slate-900/60 border border-slate-800 hover:border-cyan-500/50 rounded-xl overflow-hidden transition group block"
                 dir={dir}
               >
                 <div className="aspect-video bg-slate-800 overflow-hidden">
@@ -80,13 +88,21 @@ export default async function GuidesLibraryPage({ searchParams }: { searchParams
                   )}
                 </div>
                 <div className="p-4">
-                  <div className="flex items-center gap-2 mb-1 text-[10px]">
+                  <div className="flex items-center gap-2 mb-1 text-[10px] flex-wrap">
                     {g.category && <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded">{g.category}</span>}
                     {g.estimatedMinutes && <span className="text-slate-500">⏱ {g.estimatedMinutes} דק׳</span>}
+                    {!isShowingHebrew && (
+                      <span className="bg-amber-500/15 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                        🌐 לא תורגם לעברית
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-sm font-semibold text-white line-clamp-2 mb-1">{t?.title || "(ללא כותרת)"}</h3>
-                  {t?.description && <p className="text-xs text-slate-400 line-clamp-2">{t.description}</p>}
-                  {t?.isAuto && <span className="text-[9px] text-amber-400 mt-1 inline-block">🤖 תרגום AI</span>}
+                  {t?.description && <p className="text-xs text-slate-400 line-clamp-2 mb-2">{t.description}</p>}
+                  <div className="flex items-center justify-between mt-2">
+                    <GuideStarRating slug={g.slug} initialRating={g.userRating} size="sm" />
+                    {t?.isAuto && <span className="text-[9px] text-amber-400">🤖 תרגום AI</span>}
+                  </div>
                 </div>
               </Link>
             );

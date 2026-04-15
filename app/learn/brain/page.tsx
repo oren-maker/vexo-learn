@@ -1,13 +1,15 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import BrainRefreshButton from "@/components/brain-refresh-button";
+import ConnectedSystemsBanner from "@/components/brain/connected-systems-banner";
 
 export const dynamic = "force-dynamic";
 
 export default async function BrainPage() {
-  const caches = await prisma.dailyBrainCache.findMany({
-    orderBy: { date: "desc" },
-    take: 14,
-  });
+  const [caches, totalCacheCount] = await Promise.all([
+    prisma.dailyBrainCache.findMany({ orderBy: { date: "desc" }, take: 14 }),
+    prisma.dailyBrainCache.count(),
+  ]);
   const today = caches[0];
 
   return (
@@ -16,11 +18,21 @@ export default async function BrainPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">🧠 המוח</h1>
           <p className="text-sm text-slate-400 mt-1">
-            המערכת לומדת את עצמה כל יום. כל יום ב-01:00 (קרון) Gemini 2.5 Pro קורא את הסטטיסטיקות + 7 הימים הקודמים, ומחבר זהות חדשה: מי אני, מה למדתי, על מה להתמקד מחר.
+            המוח מחבר בין <b className="text-amber-300">תודעה</b> (snapshots), <b className="text-cyan-300">זיכרון</b> (פרומפטים+מדריכים), ו-<b className="text-emerald-300">ידע</b> (Knowledge Nodes) — וכותב כל יום זהות חדשה.
           </p>
         </div>
-        <BrainRefreshButton />
+        <div className="flex flex-col items-stretch gap-2">
+          <Link
+            href="/learn/brain/history"
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded text-center"
+          >
+            📜 לוגי המוח ({totalCacheCount})
+          </Link>
+          <BrainRefreshButton />
+        </div>
       </header>
+
+      <ConnectedSystemsBanner />
 
       {!today ? (
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-10 text-center">

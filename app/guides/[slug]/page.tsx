@@ -5,6 +5,7 @@ import { isValidLang, DEFAULT_LANG, isRtl } from "@/lib/guide-languages";
 import LanguagePicker from "@/components/guides/language-picker";
 import StageRenderer from "@/components/guides/stage-renderer";
 import ShareButton from "@/components/guides/share-button";
+import GuideStarRating from "@/components/guides/guide-star-rating";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,9 @@ export default async function GuideViewPage({
         )}
         <h1 className="text-3xl font-bold text-white">{trans?.title || "(ללא כותרת)"}</h1>
         {trans?.description && <p className="text-base text-slate-300 mt-2">{trans.description}</p>}
+        <div className="mt-3">
+          <GuideStarRating slug={guide.slug} initialRating={guide.userRating} size="lg" />
+        </div>
         <div className="flex gap-3 items-center text-xs text-slate-500 mt-3 flex-wrap">
           {guide.category && <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded">{guide.category}</span>}
           {guide.authorName && <span>✍️ {guide.authorName}</span>}
