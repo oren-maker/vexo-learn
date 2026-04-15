@@ -23,7 +23,7 @@ function toEmbedUrl(url: string): string {
 
 async function fetchMetaTags(url: string): Promise<{ caption: string | null; thumbnail: string | null; videoUrl: string | null }> {
   // Try canonical URL first, then embed URL as fallback (canonical often serves SPA shell with no og tags)
-  let best = { caption: null as string | null, thumbnail: null as string | null, videoUrl: null as string | null };
+  const best: { caption: string | null; thumbnail: string | null; videoUrl: string | null } = { caption: null, thumbnail: null, videoUrl: null };
   for (const target of [url, toEmbedUrl(url)]) {
     try {
       const res = await fetch(target, {
