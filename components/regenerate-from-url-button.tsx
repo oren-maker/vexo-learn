@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import SyncProgress from "./sync-progress";
-import { adminHeaders } from "@/lib/admin-key";
+import { adminHeaders, getAdminKey } from "@/lib/admin-key";
 
 export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId: string; hasUrl: boolean }) {
   const [jobId, setJobId] = useState<string | null>(null);
@@ -10,6 +11,10 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
   const [err, setErr] = useState("");
 
   async function run() {
+    if (!getAdminKey()) {
+      setErr("NEED_KEY");
+      return;
+    }
     if (!confirm("זה ימשוך מחדש את הכיתוב והתמונה מה-URL ויחליף את הפרומפט הנוכחי. הגרסה הישנה תישמר ב-לוגים. להמשיך?")) return;
     setErr(""); setStarting(true);
     try {
@@ -18,6 +23,10 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
         headers: adminHeaders(),
       });
       const j = await res.json();
+      if (res.status === 401) {
+        setErr("NEED_KEY");
+        return;
+      }
       if (!res.ok || !j.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
       setJobId(j.jobId);
     } catch (e: any) {
@@ -54,7 +63,13 @@ export default function RegenerateFromUrlButton({ sourceId, hasUrl }: { sourceId
           onFailed={(e) => { setJobId(null); setErr(e); }}
         />
       )}
-      {err && <span className="text-[11px] text-red-400">⚠ {err}</span>}
+      {err === "NEED_KEY" ? (
+        <span className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/40 rounded px-2 py-1">
+          ⚠ צריך admin key — <Link href="/admin" className="underline hover:text-amber-200">לחץ כאן להגדיר</Link>
+        </span>
+      ) : err ? (
+        <span className="text-[11px] text-red-400">⚠ {err}</span>
+      ) : null}
     </span>
   );
 }
