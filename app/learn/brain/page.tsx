@@ -6,9 +6,10 @@ import ConnectedSystemsBanner from "@/components/brain/connected-systems-banner"
 export const dynamic = "force-dynamic";
 
 export default async function BrainPage() {
-  const [caches, totalCacheCount] = await Promise.all([
+  const [caches, totalCacheCount, totalChatCount] = await Promise.all([
     prisma.dailyBrainCache.findMany({ orderBy: { date: "desc" }, take: 14 }),
     prisma.dailyBrainCache.count(),
+    prisma.brainChat.count(),
   ]);
   const today = caches[0];
 
@@ -22,6 +23,12 @@ export default async function BrainPage() {
           </p>
         </div>
         <div className="flex flex-col items-stretch gap-2">
+          <Link
+            href="/learn/brain/chat"
+            className="text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded text-center font-semibold"
+          >
+            💬 דבר עם המוח {totalChatCount > 0 && <span className="opacity-70">({totalChatCount})</span>}
+          </Link>
           <Link
             href="/learn/brain/history"
             className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3 py-1.5 rounded text-center"

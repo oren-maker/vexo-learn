@@ -87,7 +87,8 @@ export type Operation =
   | "knowledge-extract"
   | "translate"
   | "reference-search"
-  | "image-prompt-build";
+  | "image-prompt-build"
+  | "brain-chat";
 
 export function calcCost(model: string, inputTokens: number, outputTokens: number, imagesOut: number, videoSeconds = 0): number {
   const p = (PRICING as any)[model];

@@ -438,3 +438,27 @@ model DailyBrainCache {
 
   @@index([date])
 }
+
+model BrainChat {
+  id        String   @id @default(cuid())
+  title     String?                        // auto-generated from first message, first 60 chars
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  BrainMessage[]
+  summarizedAt DateTime?                   // set when the daily brain has read this chat
+  summary      String?  @db.Text           // constructive notes the brain extracted
+
+  @@index([createdAt])
+  @@index([summarizedAt])
+}
+
+model BrainMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      BrainChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String                         // "user" | "brain"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}

@@ -16,6 +16,7 @@ const SYSTEM = `You are the meta-cognition layer of a self-improving AI video-pr
 You are given:
 1. Today's snapshot: total prompts, guides, knowledge nodes, embeddings, deltas-from-yesterday, current top techniques/styles/strategic-insights.
 2. The last 7 days of brain caches (your own previous identities and tomorrow-focuses).
+3. Recent user chats (recentUserChats) — transcripts of DM conversations the user had with you. EXTRACT constructive feedback, corrections, directions from these and reflect them in todayLearnings and tomorrowFocus.
 
 Your job: write today's brain cache as JSON. You're writing FOR YOURSELF, tomorrow.
 
@@ -138,6 +139,26 @@ export async function computeDailyBrainCache(forceDate?: Date): Promise<{
     }),
   ]);
 
+  // ---- Pull recent un-summarized chats + summarize them ----
+  const recentChats = await prisma.brainChat.findMany({
+    where: { summarizedAt: null, messages: { some: {} } },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    include: { messages: { orderBy: { createdAt: "asc" }, take: 40 } },
+  });
+  const chatsForPrompt = recentChats.map((c) => ({
+    id: c.id,
+    title: c.title,
+    transcript: c.messages.map((m) => `${m.role === "user" ? "אורן" : "מוח"}: ${m.content}`).join("\n"),
+  }));
+  // Mark these chats as summarized (even if the LLM call fails we don't want to re-read them every hour)
+  if (recentChats.length > 0) {
+    await prisma.brainChat.updateMany({
+      where: { id: { in: recentChats.map((c) => c.id) } },
+      data: { summarizedAt: today, summary: `נקרא על ידי המוח ב-${today.toISOString().split("T")[0]}` },
+    });
+  }
+
   // ---- Pull current corpus insights (lightweight subset) ----
   let corpusSummary: any = {};
   try {
@@ -172,6 +193,7 @@ export async function computeDailyBrainCache(forceDate?: Date): Promise<{
         },
         corpus: corpusSummary,
       },
+      recentUserChats: chatsForPrompt,
       last7DaysHistory: history.map((h) => ({
         date: h.date.toISOString().split("T")[0],
         identity: h.identity,
