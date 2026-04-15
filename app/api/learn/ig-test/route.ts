@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractInstagram } from "@/lib/instagram";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const SCRAPER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 

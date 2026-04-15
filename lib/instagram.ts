@@ -80,23 +80,19 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&#x27;/g, "'");
 }
 
-async function tryInstagramDirect(clean: string, attempts = 3): Promise<string | null> {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const r = await instagramGetUrl(clean);
-      const url = r?.url_list?.[0];
-      if (url) return url;
-    } catch (e: any) {
-      const msg = String(e?.message || e);
-      console.warn(`[ig] attempt ${i + 1}/${attempts} failed:`, msg.slice(0, 200));
-      // 572/429/5xx — Instagram proxy rate-limit or transient. Retry with backoff.
-      if (i < attempts - 1) {
-        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
-        continue;
-      }
-    }
+async function tryInstagramDirect(clean: string): Promise<string | null> {
+  // The library currently 5xx's almost always due to IG hardening. One quick attempt only —
+  // we get caption+thumbnail from fetchMetaTags regardless, so the library is best-effort.
+  try {
+    const r = await Promise.race([
+      instagramGetUrl(clean),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error("library timeout 8s")), 8000)),
+    ]);
+    return r?.url_list?.[0] || null;
+  } catch (e: any) {
+    console.warn("[ig] library failed:", String(e?.message || e).slice(0, 200));
+    return null;
   }
-  return null;
 }
 
 export async function extractInstagram(url: string): Promise<IgExtract> {
