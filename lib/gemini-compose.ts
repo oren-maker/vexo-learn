@@ -150,7 +150,9 @@ async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPr
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await model.generateContent(userMsg);
     lastUsage = result.response.usageMetadata;
-    const p = parseComposeJson(result.response.text());
+    const rawText = result.response.text();
+    console.log(`[compose] attempt ${attempt + 1} raw response (first 500 chars):`, rawText.slice(0, 500));
+    const p = parseComposeJson(rawText);
     const wordCount = p.prompt.split(/\s+/).length;
     const missing = missingSections(p.prompt);
     if (wordCount >= 350 && missing.length === 0) {
