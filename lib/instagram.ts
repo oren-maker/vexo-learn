@@ -10,8 +10,10 @@ export type IgExtract = {
   sourceUrl: string;
 };
 
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+// Instagram serves a JS shell to regular browser UAs but the FULL server-rendered
+// page (with og:* tags + video_versions) to scraper-identifying UAs like facebookexternalhit.
+const SCRAPER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
+const BROWSER_UA = SCRAPER_UA;
 
 function toEmbedUrl(url: string): string {
   // Instagram's /embed endpoint returns a server-rendered HTML with og:* meta tags
