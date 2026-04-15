@@ -7,7 +7,44 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "gemini-2.5-flash-lite";
+const MODELS = ["gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash"];
+
+async function callGeminiWithFallback(system: string, history: any[]): Promise<{ reply: string; usage: any; model: string }> {
+  let lastErr: any = null;
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: history,
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          }),
+          signal: AbortSignal.timeout(45_000),
+        });
+        if (res.status === 503 || res.status === 429) {
+          lastErr = new Error(`${model} ${res.status}`);
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          continue;
+        }
+        if (!res.ok) {
+          const t = await res.text();
+          lastErr = new Error(`${model} ${res.status}: ${t.slice(0, 200)}`);
+          break; // non-transient; try next model
+        }
+        const json: any = await res.json();
+        const reply = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "(אין תגובה)";
+        return { reply, usage: json.usageMetadata, model };
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+  }
+  throw lastErr || new Error("all models failed");
+}
 
 async function buildSystemPrompt(currentChatId?: string): Promise<string> {
   const latest = await prisma.dailyBrainCache.findFirst({ orderBy: { date: "desc" } });
@@ -107,28 +144,12 @@ export async function POST(req: NextRequest) {
     }));
     history.push({ role: "user", parts: [{ text: message }] });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: history,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-      }),
-      signal: AbortSignal.timeout(50_000),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      return NextResponse.json({ error: `Gemini ${res.status}: ${t.slice(0, 200)}` }, { status: 500 });
-    }
-    const json: any = await res.json();
-    const reply = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "(אין תגובה)";
+    const { reply, usage, model } = await callGeminiWithFallback(system, history);
     await logUsage({
-      model: MODEL,
+      model,
       operation: "brain-chat",
-      inputTokens: json.usageMetadata?.promptTokenCount || 0,
-      outputTokens: json.usageMetadata?.candidatesTokenCount || 0,
+      inputTokens: usage?.promptTokenCount || 0,
+      outputTokens: usage?.candidatesTokenCount || 0,
     });
 
     const brainMsg = await prisma.brainMessage.create({
