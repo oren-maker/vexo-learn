@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
 
   const out: any = { url };
 
-  // 1. Try the library
   try {
     const r = await instagramGetUrl(url);
     out.library = { ok: true, urlListLen: r?.url_list?.length || 0, firstUrl: r?.url_list?.[0]?.slice(0, 200) || null };
@@ -21,45 +20,32 @@ export async function GET(req: NextRequest) {
     out.library = { ok: false, error: String(e?.message || e).slice(0, 300) };
   }
 
-  // 2. Raw HTML fetch
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html" },
-      signal: AbortSignal.timeout(15000),
-    });
-    out.htmlFetch = {
-      status: res.status,
-      contentType: res.headers.get("content-type"),
-    };
-    if (res.ok) {
-      const html = await res.text();
-      out.htmlFetch.htmlLength = html.length;
+  const m = url.match(/instagram\.com\/(reel|p|tv)\/([^/?]+)/i);
+  const embedUrl = m ? `https://www.instagram.com/${m[1]}/${m[2]}/embed/captioned/` : null;
+  out.embedUrl = embedUrl;
 
-      // Look for relevant patterns
-      const ogVideo = html.match(/<meta\s+property="og:video"\s+content="([^"]*)"/i)?.[1];
-      const ogVideoSecure = html.match(/<meta\s+property="og:video:secure_url"\s+content="([^"]*)"/i)?.[1];
-      const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1];
-      const ogDesc = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1];
-      const jsonVideo = html.match(/"video_url":"([^"]+)"/)?.[1];
-      const videoVersions = html.match(/"video_versions":\[\{[^}]*"url":"([^"]+)"/)?.[1];
-      const xdtVideo = html.match(/"playback_url":"([^"]+)"/)?.[1];
-
-      out.htmlFetch.found = {
-        ogVideo: ogVideo?.slice(0, 200) || null,
-        ogVideoSecure: ogVideoSecure?.slice(0, 200) || null,
-        ogImage: ogImage?.slice(0, 200) || null,
-        ogDesc: ogDesc?.slice(0, 200) || null,
-        jsonVideo: jsonVideo?.slice(0, 200) || null,
-        videoVersions: videoVersions?.slice(0, 200) || null,
-        xdtVideo: xdtVideo?.slice(0, 200) || null,
-      };
-
-      // Take a 500-char sample around any potential video reference
-      const idx = html.search(/video_url|playback_url|og:video/i);
-      out.htmlFetch.contextSnippet = idx >= 0 ? html.slice(Math.max(0, idx - 50), idx + 450) : "(no video keyword found)";
+  for (const target of [url, embedUrl].filter(Boolean) as string[]) {
+    const label = target === url ? "canonical" : "embed";
+    try {
+      const res = await fetch(target, {
+        headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html" },
+        signal: AbortSignal.timeout(15000),
+      });
+      const item: any = { status: res.status, contentType: res.headers.get("content-type") };
+      if (res.ok) {
+        const html = await res.text();
+        item.htmlLength = html.length;
+        item.found = {
+          ogVideo: html.match(/<meta\s+property="og:video"\s+content="([^"]*)"/i)?.[1]?.slice(0, 200) || null,
+          ogImage: html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1]?.slice(0, 200) || null,
+          ogDesc: html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1]?.slice(0, 200) || null,
+          jsonVideo: html.match(/"video_url":"([^"]+)"/)?.[1]?.slice(0, 200) || null,
+        };
+      }
+      out[label] = item;
+    } catch (e: any) {
+      out[label] = { error: String(e?.message || e).slice(0, 300) };
     }
-  } catch (e: any) {
-    out.htmlFetch = { error: String(e?.message || e).slice(0, 300) };
   }
 
   return NextResponse.json(out);
