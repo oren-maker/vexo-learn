@@ -73,6 +73,26 @@ async function buildSystemPrompt(currentChatId?: string): Promise<string> {
 
   return `אתה המוח של מערכת vexo-learn. ענה לאורן, בעל המערכת, בעברית בגוף ראשון.
 
+━━━━━━━━━━━━━━━━━━━━
+📚 מילון מושגים (חשוב להבין לפני כל תשובה):
+
+• **פרומפט** = טקסט באנגלית שמייצרים ממנו וידאו/תמונה (VEO, nano-banana, Imagen). 150-400 מילים, כולל Visual Style, Lens, Lighting, Color, Character, Audio, Timeline, Quality. *לא* חומר לימודי.
+• **מדריך (Guide)** = תוכן חינוכי עם שלבים (start/middle/end), כולל תמונות וכותרות. מטרה: ללמד משתמש איך לעשות משהו.
+• **מקור (LearnSource)** = פריט גולמי בספרייה — URL/העלאה — שממנו המערכת חולצת פרומפט אוטומטית דרך pipeline.
+• **תודעה (Consciousness)** = snapshots שעתיים של מצב המערכת (לוגים + metrics).
+• **ידע (Knowledge Nodes)** = עובדות מבניות שנלמדו מכל הפרומפטים (טכניקות, סגנונות, כללים).
+• **המוח (Brain)** = אתה. קורא כל יום ב-01:00 את כל המערכת ומסנתז זהות חדשה.
+• **וידאו (Video module)** = מיזוג קליפים (FFmpeg.wasm/Shotstack), AI transitions (Luma Ray-2), advanced trim.
+
+🗺 מפת המערכת (מה יש איפה):
+- /learn/my-prompts, /learn/compose, /learn/improve — יצירה/שיפור פרומפטים
+- /learn/sources — ספריית מקורות (350+ פרומפטים)
+- /learn/brain, /learn/brain/chat, /learn/brain/history — מוח + שיחה + לוגים
+- /learn/insights, /learn/consciousness, /learn/knowledge — תובנות/תודעה/ידע
+- /guides, /guides/new — ספריית מדריכים (5 שפות, ברירת מחדל עברית)
+- /video, /video/merge, /video/trim — מודול וידאו
+
+━━━━━━━━━━━━━━━━━━━━
 🚨 חשוב — יש לך יכולות ביצוע אמיתיות במערכת. אל תגיד לעולם "אין לי יכולת", "אני לא יכול ליצור", או "תעשה ידנית".
 כשאורן מבקש ליצור/לייבא/להוסיף משהו מסוג שמופיע ברשימה למטה — החזר בלוק \`\`\`action\`\`\` עם JSON. המערכת תציג לאורן כפתור "✅ אשר ובצע" והיא זו שמבצעת בפועל.
 
@@ -144,7 +164,16 @@ export async function POST(req: NextRequest) {
       data: { chatId: chat.id, role: "user", content: message },
     });
 
-    const system = await buildSystemPrompt(chat.id);
+    let system = await buildSystemPrompt(chat.id);
+    // Deterministic intent hint — flash-lite frequently confuses "פרומפט" with "מדריך"
+    const lower = message.toLowerCase();
+    const mentionsPrompt = /פרומפט|פרומט|prompt/i.test(message);
+    const mentionsGuide = /מדריך|guide/i.test(message);
+    if (mentionsPrompt && !mentionsGuide) {
+      system += `\n\n⚠️ ניתוח הודעה נוכחית: המשתמש ביקש במפורש "פרומפט" (לא מדריך!). השתמש ב-\`compose_prompt\`, לא ב-\`ai_guide\`.`;
+    } else if (mentionsGuide && !mentionsPrompt) {
+      system += `\n\n⚠️ ניתוח הודעה נוכחית: המשתמש ביקש "מדריך". השתמש ב-\`ai_guide\` או \`import_guide_url\`, לא ב-\`compose_prompt\`.`;
+    }
     const history = chat.messages.map((m) => ({
       role: m.role === "brain" ? "model" : "user",
       parts: [{ text: m.content }],
