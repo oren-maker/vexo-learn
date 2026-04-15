@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     let ok = 0, fail = 0;
     for (let i = 0; i < allUrls.length; i++) {
       const { url, category } = allUrls[i];
-      await updateJob(jobId, { current: i, message: `${i + 1}/${allUrls.length}: ${url.slice(0, 60)}` });
+      await updateJob(jobId, { completedItems: i, currentMessage: `${i + 1}/${allUrls.length}: ${url.slice(0, 60)}` });
       const r = await importOne(url, category);
       if (r.ok) ok++; else fail++;
     }
