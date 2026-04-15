@@ -24,9 +24,15 @@ export async function translateText(text: string, targetLang: string): Promise<s
     const model = genAI.getGenerativeModel({
       model: MODEL,
       systemInstruction: buildSystem(targetLang),
-      generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 4096,
+        thinkingConfig: { thinkingBudget: 0 },
+      } as any,
     });
-    const result = await model.generateContent(text.slice(0, 12000));
+    const result = await model.generateContent(
+      `Translate this text to ${langName(targetLang)}. Output ONLY the translation:\n\n${text.slice(0, 12000)}`,
+    );
     const u = result.response.usageMetadata;
     await logUsage({
       model: MODEL,
