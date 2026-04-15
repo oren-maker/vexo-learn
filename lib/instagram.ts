@@ -13,36 +13,59 @@ export type IgExtract = {
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
 
+function toEmbedUrl(url: string): string {
+  // Instagram's /embed endpoint returns a server-rendered HTML with og:* meta tags
+  // even when the main URL serves an empty SPA shell.
+  const m = url.match(/instagram\.com\/(reel|p|tv)\/([^/?]+)/i);
+  if (!m) return url;
+  return `https://www.instagram.com/${m[1]}/${m[2]}/embed/captioned/`;
+}
+
 async function fetchMetaTags(url: string): Promise<{ caption: string | null; thumbnail: string | null; videoUrl: string | null }> {
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return { caption: null, thumbnail: null, videoUrl: null };
-    const html = await res.text();
+  // Try canonical URL first, then embed URL as fallback (canonical often serves SPA shell with no og tags)
+  let best = { caption: null as string | null, thumbnail: null as string | null, videoUrl: null as string | null };
+  for (const target of [url, toEmbedUrl(url)]) {
+    try {
+      const res = await fetch(target, {
+        headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) continue;
+      const html = await res.text();
 
-    const ogDesc = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1]
-      || html.match(/<meta\s+name="description"\s+content="([^"]*)"/i)?.[1]
-      || null;
-    const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1] || null;
-    const ogVideo =
-      html.match(/<meta\s+property="og:video"\s+content="([^"]*)"/i)?.[1] ||
-      html.match(/<meta\s+property="og:video:secure_url"\s+content="([^"]*)"/i)?.[1] ||
-      null;
-    // Fallback: look for video_url in embedded JSON (InstagramJSON) — common pattern
-    const jsonVideo =
-      html.match(/"video_url":"([^"]+)"/)?.[1] ||
-      html.match(/"video_versions":\[\{[^}]*"url":"([^"]+)"/)?.[1] ||
-      null;
+      const ogDesc = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i)?.[1]
+        || html.match(/<meta\s+name="description"\s+content="([^"]*)"/i)?.[1]
+        || null;
+      const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i)?.[1] || null;
+      const ogVideo =
+        html.match(/<meta\s+property="og:video"\s+content="([^"]*)"/i)?.[1] ||
+        html.match(/<meta\s+property="og:video:secure_url"\s+content="([^"]*)"/i)?.[1] ||
+        null;
+      const jsonVideo =
+        html.match(/"video_url":"([^"]+)"/)?.[1] ||
+        html.match(/"video_versions":\[\{[^}]*"url":"([^"]+)"/)?.[1] ||
+        html.match(/"playback_url":"([^"]+)"/)?.[1] ||
+        null;
 
-    const caption = ogDesc ? decodeHtmlEntities(ogDesc) : null;
-    const thumbnail = ogImage ? decodeHtmlEntities(ogImage) : null;
-    const videoUrl = ogVideo ? decodeHtmlEntities(ogVideo) : jsonVideo ? jsonVideo.replace(/\\u0026/g, "&").replace(/\\\//g, "/") : null;
-    return { caption, thumbnail, videoUrl };
-  } catch {
-    return { caption: null, thumbnail: null, videoUrl: null };
+      const caption = ogDesc ? decodeHtmlEntities(ogDesc) : null;
+      const thumbnail = ogImage ? decodeHtmlEntities(ogImage) : null;
+      const videoUrl = ogVideo
+        ? decodeHtmlEntities(ogVideo)
+        : jsonVideo
+        ? jsonVideo.replace(/\\u0026/g, "&").replace(/\\\//g, "/")
+        : null;
+
+      // Merge: keep the most complete result across attempts
+      if (caption && !best.caption) best.caption = caption;
+      if (thumbnail && !best.thumbnail) best.thumbnail = thumbnail;
+      if (videoUrl && !best.videoUrl) best.videoUrl = videoUrl;
+      // If we have all three, stop early
+      if (best.caption && best.thumbnail && best.videoUrl) break;
+    } catch {
+      // try next candidate
+    }
   }
+  return best;
 }
 
 function decodeHtmlEntities(s: string): string {
