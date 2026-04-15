@@ -117,7 +117,11 @@ export async function POST(req: NextRequest) {
         },
       });
       resultUrl = `/learn/sources/${source.id}`;
-      resultText = `✅ יצרתי פרומפט חדש (${composed.prompt.split(" ").length} מילים). שמרתי אותו בספרייה.`;
+      const wordCount = composed.prompt.split(/\s+/).length;
+      const sections = ["VISUAL STYLE", "FILM STOCK", "COLOR", "LIGHTING", "CHARACTER", "AUDIO", "TIMELINE", "QUALITY"]
+        .filter((s) => composed.prompt.toUpperCase().includes(s));
+      const preview = composed.prompt.slice(0, 600);
+      resultText = `✅ יצרתי פרומפט מלא: ${wordCount} מילים · ${sections.length}/8 סעיפים (${sections.join(" · ")}).\n\n📄 תצוגה מקדימה:\n${preview}${composed.prompt.length > 600 ? "..." : ""}\n\n💡 ${composed.rationale?.slice(0, 400) || ""}`;
     } else if (action.type === "import_source") {
       const source = await prisma.learnSource.create({
         data: { type: "instructor_url", url: action.url, prompt: "", status: "pending", addedBy: "brain-chat" },
