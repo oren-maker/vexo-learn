@@ -38,8 +38,14 @@ Knowledge Nodes אחרונים: ${nodes}
   });
   const data: any = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  const parsed = JSON.parse(text.replace(/^```json\s*/, "").replace(/```$/, "").trim());
-  return parsed.brief || "סצנה דרמטית";
+  try {
+    const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return parsed.brief || text.slice(0, 300) || "סצנה דרמטית";
+  } catch {
+    // Model didn't return valid JSON — use raw text as brief
+    return text.slice(0, 300) || "סצנה דרמטית";
+  }
 }
 
 function slugify(text: string): string {
