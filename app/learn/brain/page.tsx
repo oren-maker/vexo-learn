@@ -20,7 +20,7 @@ export default async function BrainPage() {
       <ModuleHeader title="🧠 המוח" operations={["knowledge-extract", "brain-chat"]} logsTab="snapshots" />
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-white">🧠 המוח</h1>
+          <h1 className="text-3xl font-bold text-white">🎬 הבמאי</h1>
           <p className="text-sm text-slate-400 mt-1">
             המוח מחבר בין <b className="text-amber-300">תודעה</b> (snapshots), <b className="text-cyan-300">זיכרון</b> (פרומפטים+מדריכים), ו-<b className="text-emerald-300">ידע</b> (Knowledge Nodes) — וכותב כל יום זהות חדשה.
           </p>

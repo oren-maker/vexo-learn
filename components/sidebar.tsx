@@ -15,11 +15,11 @@ const groups = [
     ],
   },
   {
-    title: "למידה",
-    icon: "🧠",
+    title: "במאי בAI",
+    icon: "🎬",
     items: [
-      { href: "/learn/brain", label: "המוח", icon: "🧠" },
-      { href: "/learn/brain/chat", label: "שיחה עם המוח", icon: "💬" },
+      { href: "/learn/brain/chat", label: "שיחה עם הבמאי", icon: "🗣" },
+      { href: "/learn/brain", label: "הבמאי", icon: "🎬" },
       { href: "/learn/insights", label: "תובנות", icon: "📊" },
       { href: "/learn/consciousness", label: "תודעה", icon: "👁" },
       { href: "/learn", label: "Feed", icon: "📚" },
