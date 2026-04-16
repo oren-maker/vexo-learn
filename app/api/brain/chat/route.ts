@@ -166,6 +166,11 @@ ${pastChatsText}
 - אם אורן נותן נושא כללי — תפתיע אותו עם זווית יצירתית שלא ראה ממך עדיין.
 - אם אורן ביקש פרומפט חדש ואתה בטעות כתבת אותו בצ'אט — שגיאה! חובה להשתמש ב-\`compose_prompt\` action.
 
+🧠 הבחנה בין בקשות פעולה לשדרוגי מערכת:
+- "תייצר פרומפט" / "שלח קישור" / "תעשה מדריך" = **פעולה חד-פעמית** — בצע עם action, אל תתייג כשדרוג.
+- "שיהיה אפשר ל..." / "תשדרג שהמוח..." / "תוסיף פיצ'ר..." / "מעכשיו תעשה..." = **שדרוג מערכתי** — זה נשמר ל-BrainUpgradeRequest.
+- הודעות שיחה של מוח ("אורן, אני יכול...") לא נשמרות. רק הנחיות מערכתיות אמיתיות.
+
 🎲 seed של המסר הזה (השתמש בו להשראה יצירתית ייחודית, לא חזרה על משהו קודם): ${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -194,9 +199,14 @@ export async function POST(req: NextRequest) {
       data: { chatId: chat.id, role: "user", content: message },
     });
 
-    // Auto-detect instructional messages (upgrade requests) and save them for Claude to review
-    const instructionPatterns = /תעשה ש|תגדיר ש|שיהיה|שימור|תזכור ש|שדרוג|תוסיף ש|צריך ש|חשוב ש|תדאג ש|שיופיע|שהמוח|תשדרג/;
-    if (instructionPatterns.test(message) && message.length > 15) {
+    // Auto-detect SYSTEM UPGRADE instructions and save them for Claude to review.
+    // Only save if message is a rule/config change (ongoing behavior), NOT a one-shot
+    // request like "תייצר פרומפט חדש" or a chat reply.
+    const SYSTEM_UPGRADE_PATTERNS = /(תשדרג|שיהיה אפשר|שהמוח (ידע|יזכור|יסנן|יסווג|יבדוק|יהיה)|שהכל|בכל|מעכשיו|מהיום|תוסיף (פיצ'ר|אפשרות|כפתור|מסך|דף|עמוד|שדה|טאב|תפריט|קטגוריה)|תהפוך|שיתאפשר|תדאג ש|שיופיע ב|תזכור ל(סנן|סווג|בדוק|שמור))/;
+    const ONE_SHOT_OR_CHAT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תעשה לי|תפיק|תוסיף (לי )?פרומפט|תוסיף (לי )?מדריך|היי|אורן|מה אתה מציע|יש לך רעיון|\?)/;
+    const isInstruction = SYSTEM_UPGRADE_PATTERNS.test(message);
+    const isOneShot = ONE_SHOT_OR_CHAT.test(message.trim());
+    if (isInstruction && !isOneShot && message.length > 15) {
       try {
         await prisma.brainUpgradeRequest.create({
           data: {
@@ -237,9 +247,10 @@ export async function POST(req: NextRequest) {
     const brainMsg = await prisma.brainMessage.create({
       data: { chatId: chat.id, role: "brain", content: reply },
     });
-    // Capture brain's own upgrade suggestions
-    const BRAIN_SUGGESTION = /הצעה|שדרוג|מומלץ|כדאי|הייתי מציע|הייתי ממליץ|יכולת חדשה|פיצ'ר/i;
-    if (BRAIN_SUGGESTION.test(reply) && reply.length > 40) {
+    // Capture brain's own concrete upgrade proposals (not chat openers or clarifications)
+    const BRAIN_CONCRETE = /(אני מציע ש(נוסיף|נבנה|נשדרג|תהיה|נסקור)|הייתי מציע (להוסיף|לבנות|לשדרג)|יכולת חדשה|פיצ'ר חדש|אפשרות שלא קיימת|שדרוג מוצע)/;
+    const CHAT_OPENER = /^(אורן|היי|אחלה|מצוין|בוצע|רשמתי|עדכנתי|הכנסתי|הנה|✅|🧠 חושב)/;
+    if (BRAIN_CONCRETE.test(reply) && !CHAT_OPENER.test(reply.trim()) && reply.length > 40) {
       try {
         await prisma.brainUpgradeRequest.create({
           data: {
