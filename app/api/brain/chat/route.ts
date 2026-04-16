@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     // Auto-detect SYSTEM UPGRADE instructions and save them for Claude to review.
     // Only save if message is a rule/config change (ongoing behavior), NOT a one-shot
     // request like "תייצר פרומפט חדש" or a chat reply.
-    const SYSTEM_UPGRADE_PATTERNS = /(תשדרג|שיהיה אפשר|שהמוח (ידע|יזכור|יסנן|יסווג|יבדוק|יהיה)|שהכל|בכל|מעכשיו|מהיום|תוסיף (פיצ'ר|אפשרות|כפתור|מסך|דף|עמוד|שדה|טאב|תפריט|קטגוריה)|תהפוך|שיתאפשר|תדאג ש|שיופיע ב|תזכור ל(סנן|סווג|בדוק|שמור))/;
+    const SYSTEM_UPGRADE_PATTERNS = /(תשדרג (את המוח|את המערכת|שיהיה|ש)|שיהיה אפשר ל|שהמערכת (תדע|תיזכור|תסנן|תסווג|תבדוק|תציג)|שהמוח (יידע|יזכור|יסנן|יסווג|יבדוק|יהיה|ייצר כל|יפיק כל)|מעכשיו תעשה|מהיום והלאה|תוסיף פיצ'ר|תוסיף אפשרות ל|תוסיף כפתור|תוסיף מסך|תוסיף טאב|תוסיף קטגוריה|תהפוך את|שיתאפשר ל|תדאג שתמיד|שיופיע בכל (דף|מסך|מקום)|תזכור לסנן|תזכור לסווג|תזכור לבדוק|תזכור לשמור)/;
     const ONE_SHOT_OR_CHAT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תעשה לי|תפיק|תוסיף (לי )?פרומפט|תוסיף (לי )?מדריך|היי|אורן|מה אתה מציע|יש לך רעיון|\?)/;
     const isInstruction = SYSTEM_UPGRADE_PATTERNS.test(message);
     const isOneShot = ONE_SHOT_OR_CHAT.test(message.trim());
