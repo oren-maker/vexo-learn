@@ -7,7 +7,9 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const unauth = requireAdmin(req);
   if (unauth) return unauth;
-  const pending = await prisma.brainUpgradeRequest.findMany({ where: { status: "pending" } });
+  const pending = await prisma.brainUpgradeRequest.findMany({
+    where: { status: { in: ["pending", "in-progress"] } },
+  });
 
   const ONE_SHOT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תייצר לי|אחלה תייצר|מוח תייצר)|תייצר לי פרומט|תייצר פרומט|תייצר כאלה/;
   const QUESTION_OR_CHAT = /^(שיהיה מוכן|היי אורן|מה המשימה|אורן, אני|אני יכול לבצע|הנה הפרומפט|בוצע\.|הכנסתי לסדר)/;
