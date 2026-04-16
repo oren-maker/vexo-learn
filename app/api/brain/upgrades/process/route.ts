@@ -9,7 +9,11 @@ export async function POST(req: NextRequest) {
   if (unauth) return unauth;
   const pending = await prisma.brainUpgradeRequest.findMany({ where: { status: "pending" } });
 
-  const ONE_SHOT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תייצר לי|אחלה תייצר|מוח תייצר)|תייצר לי פרומט|תייצר פרומט/;
+  const ONE_SHOT = /^(תייצר|צור|שלח לי|תשלח|אני רוצה שתייצר|תייצר לי|אחלה תייצר|מוח תייצר)|תייצר לי פרומט|תייצר פרומט|תייצר כאלה/;
+  const QUESTION_OR_CHAT = /^(שיהיה מוכן|היי אורן|מה המשימה|אורן, אני|אני יכול לבצע|הנה הפרומפט|בוצע\.|הכנסתי לסדר)/;
+  const DEDUPE_BUILT = /לזהות פרומפטים חוזרים|דומות סמנטית|כפילויות|למזג אותם/;
+  const DAILY_PROPOSALS_BUILT = /מצב הצעות יומי|3 הצעות שדרוג|reactive ל-proactive|מאתמול לpro-active/;
+  const DAILY_GEN_BUILT = /תייצר דברים חדשים כתוצאה מכל מה שלמדת|יצירה יומית/;
   const BRAIN_CONFIRMATION = /^רשמתי|^הכנסתי|^מצוין, אורן|^בוצע\.|המחסום של.*הוסר|Knowledge Nodes שלי/;
   const BRAIN_OUTPUT = /^✅ יצרתי פרומפט|VISUAL STYLE:|📄 תצוגה מקדימה/;
   const QUESTION = /^ומה אתה מציע|^מה אתה מציע|יש לך רעיון\s*\?/;
@@ -27,6 +31,10 @@ export async function POST(req: NextRequest) {
     const t = u.instruction;
 
     if (BRAIN_OUTPUT.test(t)) { status = "rejected"; note = "זה תוצר של compose_prompt שנלכד בטעות, לא שדרוג"; }
+    else if (DEDUPE_BUILT.test(t)) { status = "done"; note = "ממומש: cron /api/cron/brain-proposals מזהה כפילויות ומציע מיזוג"; }
+    else if (DAILY_PROPOSALS_BUILT.test(t)) { status = "done"; note = "ממומש: cron /api/cron/brain-proposals יומי מייצר 3 הצעות ב-BrainUpgradeRequest"; }
+    else if (DAILY_GEN_BUILT.test(t)) { status = "done"; note = "ממומש: cron /api/cron/daily-generation יומי יוצר פרומפט חדש"; }
+    else if (QUESTION_OR_CHAT.test(t)) { status = "rejected"; note = "הודעת שיחה/שאלה, לא שדרוג"; }
     else if (BRAIN_CONFIRMATION.test(t)) { status = "done"; note = "אישור/הצהרה של המוח, כבר מיושם במערכת"; }
     else if (QUESTION.test(t)) { status = "rejected"; note = "שאלה, לא שדרוג"; }
     else if (BRAIN_SUGGESTION_REVIEW.test(t)) { status = "in-progress"; note = "הצעה לשיפור פרומפטים קצרים בקורפוס — ייבחן בסבב הבא"; }
