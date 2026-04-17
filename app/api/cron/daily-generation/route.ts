@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
+// TODO: merge with composePrompt — currently 2 Gemini calls (topic pick + compose);
+// composePrompt has its own keyword ref-picker + 2-attempt validation loop so inlining
+// a `topic` parameter needs plumbing through multiple layers. Left as-is for now.
 async function pickDailyTopic(): Promise<string> {
   // Use Gemini to pick a novel topic based on recent knowledge nodes + latest brain identity
   const [latestBrain, recentNodes, recentSources] = await Promise.all([

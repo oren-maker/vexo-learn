@@ -41,6 +41,9 @@ Rules:
 export async function extractKnowledgeFromPromptText(
   promptText: string
 ): Promise<AnalysisShape> {
+  if (promptText.length < 50) {
+    return { description: "", techniques: [], style: null, mood: null, difficulty: null, howTo: [], tags: [], insights: [] };
+  }
   if (!API_KEY) throw new Error("GEMINI_API_KEY חסר");
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({
