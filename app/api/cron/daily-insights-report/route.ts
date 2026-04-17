@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { computeCorpusInsights } from "@/lib/corpus-insights";
 import { logUsage } from "@/lib/usage-tracker";
@@ -52,7 +52,12 @@ ${delta ? `- מאתמול: +${delta.sourcesAdded} פרומפטים, +${delta.nod
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   try {
     const insights = await computeCorpusInsights();
     const yesterday = new Date(Date.now() - 24 * 3600 * 1000);

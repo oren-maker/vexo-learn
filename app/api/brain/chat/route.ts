@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     }
 
     let chat = chatId
-      ? await prisma.brainChat.findUnique({ where: { id: chatId }, include: { messages: { orderBy: { createdAt: "asc" }, take: 30 } } })
+      ? await prisma.brainChat.findUnique({ where: { id: chatId }, include: { messages: { orderBy: { createdAt: "desc" }, take: 12 } } })
       : null;
     if (!chat) {
       chat = await prisma.brainChat.create({
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
     } else if (mentionsGuide && !mentionsPrompt) {
       system += `\n\n⚠️ ניתוח הודעה נוכחית: המשתמש ביקש "מדריך". השתמש ב-\`ai_guide\` או \`import_guide_url\`, לא ב-\`compose_prompt\`.`;
     }
-    const history = chat.messages.map((m) => ({
+    const history = [...chat.messages].reverse().map((m) => ({
       role: m.role === "brain" ? "model" : "user",
       parts: [{ text: m.content }],
     }));

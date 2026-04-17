@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logUsage } from "@/lib/usage-tracker";
 
@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   try {
     const since = new Date(Date.now() - 24 * 3600 * 1000);
     const snapshots = await prisma.insightsSnapshot.findMany({

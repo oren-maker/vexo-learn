@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { suggestSimilar } from "@/lib/gemini-compose";
 import { createJob, finishJob, failJob, updateJob } from "@/lib/sync-jobs";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-// Public — read-only generation that already runs on server. Each call costs ~$0.001.
-// If abuse becomes a concern, gate with requireAdmin like other paid endpoints.
 export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   try {
     const { sourceId, count = 3 } = await req.json();
     if (!sourceId) return NextResponse.json({ ok: false, error: "sourceId נדרש" }, { status: 400 });

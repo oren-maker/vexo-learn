@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { composePrompt } from "@/lib/gemini-compose";
 
@@ -11,8 +11,8 @@ const API_KEY = process.env.GEMINI_API_KEY;
 async function pickDailyTopic(): Promise<string> {
   // Use Gemini to pick a novel topic based on recent knowledge nodes + latest brain identity
   const [latestBrain, recentNodes, recentSources] = await Promise.all([
-    prisma.dailyBrainCache.findFirst({ orderBy: { date: "desc" } }),
-    prisma.knowledgeNode.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.dailyBrainCache.findFirst({ orderBy: { date: "desc" }, select: { identity: true } }),
+    prisma.knowledgeNode.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { title: true, body: true } }),
     prisma.learnSource.findMany({ where: { addedBy: "daily-generation" }, orderBy: { createdAt: "desc" }, take: 10, select: { title: true } }),
   ]);
   const identity = latestBrain?.identity?.slice(0, 400) || "מערכת חדשה";
@@ -53,7 +53,12 @@ function slugify(text: string): string {
   return text.split("").map((c) => HE_TO_LAT[c] ?? c).join("").toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 60) || "daily";
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   if (!API_KEY) return NextResponse.json({ error: "GEMINI_API_KEY missing" }, { status: 500 });
   try {
     const brief = await pickDailyTopic();

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 // Generates 3 concrete daily upgrade proposals based on actual corpus state.
 // Each proposal is saved as a BrainUpgradeRequest with context="daily-proposal"
 // awaiting user approval before Claude implements.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   try {
     const proposals: Array<{ instruction: string; priority: number }> = [];
 

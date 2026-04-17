@@ -152,7 +152,7 @@ async function composeWithGemini(brief: string, refs: any[]): Promise<ComposedPr
   const model = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.8, maxOutputTokens: 4096 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.8, maxOutputTokens: 2500 },
   });
 
   let userMsg = buildUserMsg(brief, refs);

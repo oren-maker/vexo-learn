@@ -137,7 +137,7 @@ export async function understandVideo(
     generationConfig: {
       responseMimeType: "application/json",
       temperature: 0.3,
-      maxOutputTokens: 3000,
+      maxOutputTokens: 1200,
     },
   };
   const res = await fetch(url, {

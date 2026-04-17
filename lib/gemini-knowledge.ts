@@ -48,7 +48,7 @@ export async function extractKnowledgeFromPromptText(
     systemInstruction: SYSTEM,
     generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
   });
-  const result = await model.generateContent(promptText.slice(0, 6000));
+  const result = await model.generateContent(promptText.slice(0, 3000));
   const u = result.response.usageMetadata;
   await logUsage({
     model: MODEL, operation: "knowledge-extract",

@@ -48,7 +48,7 @@ async function improveWithGemini(userMsg: string): Promise<any> {
   const model = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: SYSTEM,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 4096 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 1500 },
   });
   const result = await model.generateContent(userMsg);
   const u = result.response.usageMetadata;

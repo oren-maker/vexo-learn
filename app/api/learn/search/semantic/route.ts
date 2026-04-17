@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { embedText, cosineSim } from "@/lib/gemini-embeddings";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 // Body: { query: string, limit?: number }
 export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   try {
     const { query, limit } = await req.json();
     if (!query || typeof query !== "string" || query.trim().length < 2) {

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Debug: return Gemini's RAW response so we can see why JSON parsing fails.
 export async function POST(req: NextRequest) {
+  const unauth = requireAdmin(req);
+  if (unauth) return unauth;
   const { sourceId } = await req.json();
   const source = await prisma.learnSource.findUnique({ where: { id: sourceId } });
   if (!source) return NextResponse.json({ error: "source not found" }, { status: 404 });
